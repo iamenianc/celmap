@@ -17,6 +17,15 @@
         <SolidColorBrush x:Key="WarnBg" Color="#FFF4E5" />
         <SolidColorBrush x:Key="WarnText" Color="#9A5B00" />
         <SolidColorBrush x:Key="SelectBg" Color="#2D6CDF" />
+        <SolidColorBrush x:Key="GridLine" Color="#E3E8F0" />
+        <SolidColorBrush x:Key="HeaderCellBg" Color="#F2F5FA" />
+        <SolidColorBrush x:Key="AutoTint" Color="#EAF3EA" />     <!-- auto-mapped slot -->
+        <SolidColorBrush x:Key="ManualTint" Color="#E8F1FF" />   <!-- user-mapped slot -->
+        <SolidColorBrush x:Key="DropZoneBg" Color="#F7F9FC" />
+
+        <!-- Fixed column width for the Excel-like grids. Wide enough to show most headers in
+             full on a maximised window; the rest truncate with a tooltip. -->
+        <sys:Double x:Key="GridColWidth" xmlns:sys="clr-namespace:System;assembly=System.Runtime">140</sys:Double>
 
         <!-- Typography defaults -->
         <Style TargetType="{x:Type Control}">
@@ -110,7 +119,48 @@
             <Setter Property="Padding" Value="6,4" />
         </Style>
 
+        <!-- Excel-like grid cells — readable font, single line, truncated with a tooltip -->
+        <Style x:Key="GridDataCell" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="Foreground" Value="{StaticResource InkText}" />
+            <Setter Property="Padding" Value="6,3" />
+            <Setter Property="Height" Value="24" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+        </Style>
+
+        <!-- Header cell at the top of a grid column -->
+        <Style x:Key="GridHeaderCell" TargetType="Border">
+            <Setter Property="Background" Value="{StaticResource HeaderCellBg}" />
+            <Setter Property="BorderBrush" Value="{StaticResource GridLine}" />
+            <Setter Property="BorderThickness" Value="0,0,1,1" />
+            <Setter Property="Padding" Value="6,5" />
+            <Setter Property="Height" Value="34" />
+        </Style>
+
+        <!-- A source column option in the inline picker list — a rounded chip so options
+             read as distinct items instead of blending into one list. -->
+        <Style x:Key="PickerOption" TargetType="Border">
+            <Setter Property="Padding" Value="7,4" />
+            <Setter Property="Margin" Value="3,2" />
+            <Setter Property="CornerRadius" Value="5" />
+            <Setter Property="BorderBrush" Value="{StaticResource Hairline}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Background" Value="White" />
+        </Style>
+
+        <!-- File drop-zone on the setup screen — compact -->
+        <Style x:Key="DropZone" TargetType="Border">
+            <Setter Property="Background" Value="{StaticResource DropZoneBg}" />
+            <Setter Property="BorderBrush" Value="{StaticResource Hairline}" />
+            <Setter Property="BorderThickness" Value="2" />
+            <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="Padding" Value="12" />
+            <Setter Property="MinHeight" Value="64" />
+        </Style>
+
         <local:KindToBrushConverter x:Key="KindToBrush" />
         <local:BoolToVisibilityConverter x:Key="BoolToVis" />
+        <local:StringMatchToVisibilityConverter x:Key="StateToVis" />
     </Application.Resources>
 </Application>

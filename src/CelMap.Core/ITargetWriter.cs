@@ -19,7 +19,10 @@ public record WriteRequest(
     // col index in source -> col index in target (both 0-based within their SheetData)
     IReadOnlyDictionary<int, int> ColumnMap,
     string OutputDirectory,
-    WriteMode Mode = WriteMode.Overwrite
+    WriteMode Mode = WriteMode.Overwrite,
+    // target col index (0-based) -> literal value to write into EVERY data row of that column.
+    // Independent of ColumnMap: a target column can be filled from a source OR a constant.
+    IReadOnlyDictionary<int, string>? ConstantColumns = null
 );
 
 public record WriteResult(

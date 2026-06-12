@@ -57,6 +57,10 @@ public sealed class TargetWriter : ITargetWriter
         int sourceFirstCol = GetFirstUsedCol(req.SourceFilePath, req.SourceSheetName);
         int targetFirstCol = GetFirstUsedCol(req.TargetFilePath, req.TargetSheetName);
 
+        // Resolve each typed constant once: text, unless it's a YYYY-MM-DD date.
+        var constants = (req.ConstantColumns ?? new Dictionary<int, string>())
+            .ToDictionary(kv => kv.Key, kv => ParseConstant(kv.Value));
+
         int rowsWritten = 0;
         for (int dataRow = 0; dataRow < dataRowCount; dataRow++)
         {
@@ -70,11 +74,34 @@ public sealed class TargetWriter : ITargetWriter
                 var cell = ws.Cell(targetSheetRow, tgtSheetCol);
                 WriteVerbatim(cell, value);
             }
+
+            // Typed constants fill EVERY data row of their target column.
+            foreach (var (tgtColIdx, value) in constants)
+            {
+                int tgtSheetCol = targetFirstCol + tgtColIdx;
+                WriteVerbatim(ws.Cell(targetSheetRow, tgtSheetCol), value);
+            }
             rowsWritten++;
         }
 
         wb.Save();
         return new WriteResult(outputPath, rowsWritten, warnings);
+    }
+
+    /// <summary>A typed constant is written as text, unless it is a strict YYYY-MM-DD date,
+    /// in which case it is written as a real date so Excel treats it as one.</summary>
+    public static CellValue ParseConstant(string text)
+    {
+        if (string.IsNullOrEmpty(text)) return CellValue.Empty;
+
+        if (System.Text.RegularExpressions.Regex.IsMatch(text, @"^\d{4}-\d{2}-\d{2}$")
+            && DateTime.TryParseExact(text, "yyyy-MM-dd",
+                System.Globalization.CultureInfo.InvariantCulture,
+                System.Globalization.DateTimeStyles.None, out var date))
+        {
+            return CellValue.FromDateTime(date);
+        }
+        return CellValue.FromText(text);
     }
 
     private static void WriteVerbatim(IXLCell cell, CellValue value)

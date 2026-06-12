@@ -25,7 +25,15 @@ public sealed class ColumnMatcher : IColumnMatcher
     {
         var mappings = new List<TargetColumnMapping>(targetHeaders.Count);
 
-        var named = sourceHeaders.Where(s => !string.IsNullOrWhiteSpace(s.Label)).ToList();
+        // A source column only participates if it has a label AND has data underneath it.
+        // Header-only columns with nothing below them (common in stacked/templated sheets —
+        // e.g. a second "Member ID" header over an empty block) carry no values to map, so
+        // they must not score, must not win, and must not create false ambiguity. Treat them
+        // as if they don't exist.
+        var named = sourceHeaders
+            .Where(s => !string.IsNullOrWhiteSpace(s.Label))
+            .Where(s => !(sourceColumnIsEmpty?.Invoke(s) ?? false))
+            .ToList();
 
         foreach (var target in targetHeaders)
         {
@@ -136,22 +144,54 @@ public sealed class ColumnMatcher : IColumnMatcher
     /// and extra tokens (units, parentheticals) don't tank the score.</summary>
     private MatchCandidate ScorePair(string targetLabel, HeaderColumn source)
     {
-        string a = Normalize(targetLabel);
-        string b = Normalize(source.Label);
-        if (a.Length == 0 || b.Length == 0)
+        // For the EXACT check, collapse all whitespace so "Member ID" == "MemberID".
+        string aTight = NormalizeTight(targetLabel);
+        string bTight = NormalizeTight(source.Label);
+        if (aTight.Length == 0 || bTight.Length == 0)
             return new MatchCandidate(source, 0, MatchKind.Fuzzy);
 
-        // Exact normalized equality is the strongest certainty.
-        if (a == b)
+        // Exact (whitespace-insensitive) equality is the strongest certainty.
+        if (aTight == bTight)
             return new MatchCandidate(source, 100, MatchKind.Exact);
 
         // Alias hit (e.g. DOB ↔ Date of Birth) is also a certainty, just below exact.
         if (_aliases.AreAliases(targetLabel, source.Label))
             return new MatchCandidate(source, 100, MatchKind.Alias);
 
-        return new MatchCandidate(source, Fuzz.TokenSetRatio(a, b), MatchKind.Fuzzy);
+        // For FUZZY scoring keep word boundaries: TokenSetRatio needs spaces to see shared
+        // tokens, so "Email" vs "Email Address" scores 100 — collapsing them to one run
+        // ("email" vs "emailaddress") would wrongly drop it to ~59.
+        //
+        // Score the source against the target's WHOLE synonym group and take the best: a
+        // source that doesn't fuzz well to the literal target may fuzz strongly to a sibling
+        // synonym (e.g. target "DOB" + group {Date of Birth, Birth Date} lets source
+        // "Birth Dt" score against "Birth Date" instead of the unhelpful "DOB"). Stays Fuzzy
+        // with the real ratio — not promoted to a certainty.
+        string sourceLoose = NormalizeLoose(source.Label);
+        int best = 0;
+        foreach (var synonym in _aliases.SynonymsOf(targetLabel))
+        {
+            int score = Fuzz.TokenSetRatio(NormalizeLoose(synonym), sourceLoose);
+            if (score > best) best = score;
+        }
+        return new MatchCandidate(source, best, MatchKind.Fuzzy);
     }
 
-    private static string Normalize(string s) =>
+    /// <summary>Whitespace-INSENSITIVE form for the exact check: lower-cased, ALL whitespace
+    /// removed, so "Member ID", "MemberID" and "member  id" collapse to one token. Punctuation
+    /// kept as-is (aliases handle e.g. "D.O.B.").</summary>
+    private static string NormalizeTight(string s)
+    {
+        Span<char> buffer = s.Length <= 256 ? stackalloc char[s.Length] : new char[s.Length];
+        int n = 0;
+        foreach (char c in s)
+            if (!char.IsWhiteSpace(c))
+                buffer[n++] = char.ToLowerInvariant(c);
+        return new string(buffer[..n]);
+    }
+
+    /// <summary>Token-preserving form for fuzzy scoring: lower-cased, newlines folded to
+    /// spaces, trimmed — but internal spaces kept so TokenSetRatio can match on shared words.</summary>
+    private static string NormalizeLoose(string s) =>
         s.Replace('\n', ' ').Replace('\r', ' ').Trim().ToLowerInvariant();
 }

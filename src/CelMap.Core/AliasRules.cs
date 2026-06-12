@@ -25,6 +25,8 @@ public sealed class AliasRules
     private readonly Dictionary<string, string> _labelToGroup;
     // normalized labels that belong to a strict group (fuzzy fallback disallowed)
     private readonly HashSet<string> _strictLabels;
+    // group key -> the original (un-normalized) names in that group, for fuzzy expansion
+    private readonly Dictionary<string, List<string>> _groupMembers;
 
     public IReadOnlyList<AliasGroup> Groups { get; }
 
@@ -33,6 +35,7 @@ public sealed class AliasRules
         Groups = groups.ToList();
         _labelToGroup = new Dictionary<string, string>();
         _strictLabels = new HashSet<string>();
+        _groupMembers = new Dictionary<string, List<string>>();
 
         foreach (var group in Groups)
         {
@@ -49,6 +52,13 @@ public sealed class AliasRules
                 _labelToGroup[name] = key;   // last-writer-wins on overlap
                 if (group.Strict) _strictLabels.Add(name);
             }
+
+            // Keep the original spellings for fuzzy expansion (with word boundaries intact).
+            var members = _groupMembers.TryGetValue(key, out var existing) ? existing : new List<string>();
+            foreach (var original in group.Names)
+                if (!string.IsNullOrWhiteSpace(original))
+                    members.Add(original);
+            _groupMembers[key] = members;
         }
     }
 
@@ -82,6 +92,17 @@ public sealed class AliasRules
     /// <summary>True if the given label belongs to a strict synonym group — meaning
     /// it must be matched exactly or by alias, and fuzzy fallback is not allowed.</summary>
     public bool IsStrict(string label) => _strictLabels.Contains(Normalize(label));
+
+    /// <summary>All synonym spellings in the given label's group (original casing/spacing),
+    /// for fuzzy expansion — so a target fuzzy-scores against every sibling synonym, not just
+    /// its own literal. If the label is in no group, returns just the label itself.</summary>
+    public IReadOnlyList<string> SynonymsOf(string label)
+    {
+        if (_labelToGroup.TryGetValue(Normalize(label), out var key) &&
+            _groupMembers.TryGetValue(key, out var members))
+            return members;
+        return new[] { label };
+    }
 
     // ── Persistence ──────────────────────────────────────────────────────────
     public static AliasRules LoadFromFile(string path)

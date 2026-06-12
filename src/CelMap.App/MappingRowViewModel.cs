@@ -1,13 +1,21 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
 using CelMap.Core;
 using CommunityToolkit.Mvvm.ComponentModel;
 
 namespace CelMap.App;
 
 /// <summary>
-/// One target column in the interactive grid. Wraps the engine's
-/// <see cref="TargetColumnMapping"/> but is mutable so the user can override the
-/// linked source by clicking (Tracer 4). The engine's original outcome is kept so
-/// we can show the auto tier/score/status alongside any manual override.
+/// One target column in the Excel-like mapping grid. Wraps the engine's
+/// <see cref="TargetColumnMapping"/> but is mutable so the user can override the linked
+/// source by clicking (Tracer 4). The engine's original outcome is kept so we can show
+/// the auto tier/score/status alongside any manual override.
+///
+/// Rendered as a vertical strip: a header cell on top, then a body that shows EITHER the
+/// inline source picker (when <see cref="IsPickerOpen"/>) or the linked source's sample
+/// rows (<see cref="SampleCells"/>) — a live preview of what the output column will hold.
+/// Target column order is fixed; rows never reorder.
 /// </summary>
 public sealed partial class MappingRowViewModel : ObservableObject
 {
@@ -19,29 +27,51 @@ public sealed partial class MappingRowViewModel : ObservableObject
         ? $"(column {TargetColumn.ColumnIndex + 1})"
         : TargetColumn.Label;
 
+    /// <summary>Label shown on the collapsed strip when the column is hidden — the first 16
+    /// characters of the column name, so it stays readable in the narrow strip.</summary>
+    public string HiddenLabel =>
+        TargetLabel.Length > 16 ? TargetLabel[..16] : TargetLabel;
+
     /// <summary>The source column currently linked to this target — null if unmapped.
     /// Set by auto-match initially, then overridable by clicking.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(LinkedSourceLabel))]
     [NotifyPropertyChangedFor(nameof(IsLinked))]
+    [NotifyPropertyChangedFor(nameof(IsFilled))]
+    [NotifyPropertyChangedFor(nameof(BodyState))]
     [NotifyPropertyChangedFor(nameof(StatusText))]
     [NotifyPropertyChangedFor(nameof(IsManualOverride))]
-    [NotifyPropertyChangedFor(nameof(GroupKey))]
-    [NotifyPropertyChangedFor(nameof(GroupSort))]
     private HeaderColumn? _linkedSource;
+
+    /// <summary>A typed literal that fills EVERY data row of this target column, instead of a
+    /// mapped source. Mutually exclusive with <see cref="LinkedSource"/>. Null when unset.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(LinkedSourceLabel))]
+    [NotifyPropertyChangedFor(nameof(IsConstant))]
+    [NotifyPropertyChangedFor(nameof(IsFilled))]
+    [NotifyPropertyChangedFor(nameof(BodyState))]
+    [NotifyPropertyChangedFor(nameof(StatusText))]
+    private string? _constantValue;
+
+    /// <summary>The sample rows shown in the body — mirrors the linked source's values,
+    /// empty when nothing is linked.</summary>
+    [ObservableProperty]
+    private IReadOnlyList<string> _sampleCells = Array.Empty<string>();
+
+    /// <summary>True when the body shows the inline source list (unmapped, or the user
+    /// clicked the body to change the pick) rather than the data preview.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(BodyState))]
+    private bool _isPickerOpen;
 
     /// <summary>True when the user has changed the link away from the engine's auto pick.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(StatusText))]
-    [NotifyPropertyChangedFor(nameof(IsAutoLinked))]
-    [NotifyPropertyChangedFor(nameof(GroupKey))]
-    [NotifyPropertyChangedFor(nameof(GroupSort))]
     private bool _isManualOverride;
 
-    /// <summary>Hidden rows are excluded from the write (PRD §2.3 hide/show).</summary>
+    /// <summary>Hidden columns collapse to a thin restore strip and are excluded from the
+    /// write (PRD §2.3 hide/show).</summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(GroupKey))]
-    [NotifyPropertyChangedFor(nameof(GroupSort))]
     private bool _isHidden;
 
     /// <summary>True when the linked source column has no data below its header (PRD §2.3 warning).</summary>
@@ -53,34 +83,34 @@ public sealed partial class MappingRowViewModel : ObservableObject
         Original = original;
         _linkedSource = original.Status == MatchStatus.Auto ? original.MatchedSource : null;
         _linkedSourceIsEmpty = _linkedSource is not null && original.SourceColumnIsEmpty;
+        if (_linkedSource is not null)
+            _sampleCells = Array.Empty<string>();   // filled later via SetLink with samples
+        // Slots start blank (picker closed); a single click opens the source list.
+        _isPickerOpen = false;
     }
 
+    /// <summary>True when a source column is mapped here (not a constant).</summary>
     public bool IsLinked => LinkedSource is not null;
 
-    /// <summary>A still-linked row that came from the engine's auto pick (not yet rejected
-    /// or overridden). These sit in the "confirm" section — click to reject.</summary>
-    public bool IsAutoLinked => IsLinked && !IsManualOverride;
+    /// <summary>True when this column is filled by a typed constant.</summary>
+    public bool IsConstant => ConstantValue is not null;
 
-    /// <summary>Section a row sorts into. Order reflects the workflow:
-    /// 1) Needs manual mapping (the focus) → 2) Auto-matched, confirm/reject →
-    /// 3) Manually mapped → 4) Hidden. Mapped rows move out of the way of the
-    /// remaining work, exactly as asked.</summary>
-    public string GroupKey =>
-        IsHidden ? "Hidden — not written"
-        : !IsLinked ? "Needs mapping — click a source, then this row"
-        : IsManualOverride ? "Manually mapped"
-        : "Auto-matched — click a row to reject it";
+    /// <summary>True when the column has any content to write — a source OR a constant.</summary>
+    public bool IsFilled => IsLinked || IsConstant;
 
-    /// <summary>Sort key driving group order: needs-mapping (0) → auto (1) → manual (2) → hidden (3).</summary>
-    public int GroupSort =>
-        IsHidden ? 3
-        : !IsLinked ? 0
-        : IsManualOverride ? 2
-        : 1;
+    /// <summary>Which body the slot shows: "Picker" (source list + type-a-value box open),
+    /// "Preview" (filled, showing the data), or "Blank" (default — click once to open the
+    /// picker). The slot looks empty until the user engages it.</summary>
+    public string BodyState =>
+        IsPickerOpen ? "Picker"
+        : IsFilled ? "Preview"
+        : "Blank";
 
-    public string LinkedSourceLabel => LinkedSource is { } s
-        ? (string.IsNullOrWhiteSpace(s.Label) ? $"(column {s.ColumnIndex + 1})" : s.Label)
-        : "—";
+    public string LinkedSourceLabel =>
+        IsConstant ? $"“{ConstantValue}” (typed)"
+        : LinkedSource is { } s
+            ? (string.IsNullOrWhiteSpace(s.Label) ? $"(column {s.ColumnIndex + 1})" : s.Label)
+            : "—";
 
     /// <summary>Score of the engine's best candidate (0 if none). Tier is from the original run.</summary>
     public int Score => Original.Score;
@@ -94,9 +124,7 @@ public sealed partial class MappingRowViewModel : ObservableObject
     {
         get
         {
-            // A linked override reads as "Manual"; anything unlinked (including a
-            // rejected auto-match) falls through to its engine status so the
-            // Needs-mapping section reads consistently.
+            if (IsConstant) return "Typed value";
             if (IsManualOverride && IsLinked)
                 return "Manual";
 
@@ -123,13 +151,29 @@ public sealed partial class MappingRowViewModel : ObservableObject
     /// <summary>Candidate sources the engine surfaced (for ambiguous/qualified rows) — the obvious picks.</summary>
     public IReadOnlyList<MatchCandidate> Candidates => Original.Candidates;
 
-    /// <summary>Apply a user click: link this target to the given source (or clear with null).</summary>
-    public void SetLink(HeaderColumn? source, Func<HeaderColumn, bool> sourceIsEmpty)
+    /// <summary>Apply a user click: link this target to the given source (or clear with null).
+    /// Pulls the source's sample rows into the body and closes the picker when linked.</summary>
+    public void SetLink(HeaderColumn? source, Func<HeaderColumn, bool> sourceIsEmpty,
+                        Func<HeaderColumn, IReadOnlyList<string>> sampleFor)
     {
-        // Decide override-ness against the engine's auto pick.
         var autoPick = Original.Status == MatchStatus.Auto ? Original.MatchedSource : null;
         IsManualOverride = source?.ColumnIndex != autoPick?.ColumnIndex;
+        ConstantValue = null;            // a source mapping replaces any typed constant
         LinkedSource = source;
         LinkedSourceIsEmpty = source is not null && sourceIsEmpty(source);
+        SampleCells = source is null ? Array.Empty<string>() : sampleFor(source);
+        IsPickerOpen = source is null;   // mapped → show preview; cleared → show picker
+    }
+
+    /// <summary>Fill this target with a typed literal applied to every data row. Replaces any
+    /// mapped source. The preview repeats the value down <paramref name="previewRows"/> rows.</summary>
+    public void SetConstant(string value, int previewRows)
+    {
+        LinkedSource = null;
+        LinkedSourceIsEmpty = false;
+        IsManualOverride = false;
+        ConstantValue = value;
+        SampleCells = Enumerable.Repeat(value, previewRows).ToList();
+        IsPickerOpen = false;            // show the repeated-value preview
     }
 }

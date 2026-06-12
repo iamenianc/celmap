@@ -1,7 +1,6 @@
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
-using System.ComponentModel;
 using System.IO;
-using System.Windows.Data;
 using CelMap.Core;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -10,32 +9,44 @@ using Microsoft.Win32;
 namespace CelMap.App;
 
 /// <summary>
-/// Orchestrates <see cref="CelMap.Core"/> for the WPF shell. Holds no mapping
-/// logic of its own — it drives the same read → match → write pipeline the CLI
-/// runs (see CelMap.Cli/Program.cs), proving the UI/core split (PRD §9).
+/// Orchestrates <see cref="CelMap.Core"/> for the WPF shell. Holds no mapping logic of
+/// its own — it drives the same read → match → write pipeline the CLI runs, proving the
+/// UI/core split (PRD §9).
 ///
-/// Tracer 4 splits the old one-shot Run into an interactive workflow:
-/// <b>Match</b> populates a click-to-link grid (left = source columns, right =
-/// target columns); the user steers the links by clicking; <b>Write</b> consumes
-/// the edited links and honours the chosen write mode (PRD §2.3, §2.5).
+/// Tracer 4 (UI/UX overhaul) presents <b>two screens in one window</b>:
+/// <list type="number">
+/// <item><b>Setup</b> — drag-drop source + target files; sheet (defaults to first) and an
+/// auto-detected header row, validated against a header preview strip.</item>
+/// <item><b>Mapping</b> — a full-window, Excel-like preview. Top grid = source header +
+/// ~10 sample rows; bottom grid = each target column showing the sample rows of whichever
+/// source is mapped into it. Target column order is fixed and never reorders.</item>
+/// </list>
+/// Auto-map runs on the way into the mapping screen and pre-fills confident slots.
 /// </summary>
 public sealed partial class MainViewModel : ObservableObject
 {
+    /// <summary>How many sample data rows the Excel-like grids preview.</summary>
+    public const int SampleRowCount = 10;
+
     private readonly IWorkbookReader _reader;
     private readonly IColumnMatcher _matcher;
     private readonly ITargetWriter _writer;
     private readonly AliasRules _aliases;
     private readonly QualifiedRules _qualified;
 
-    // Cached sheet data + headers from the last Match, so re-applying the
-    // threshold and the Write step don't re-read the files.
+    // Cached sheet data + headers from the last Match, so re-applying the threshold and
+    // the Write step don't re-read the files.
     private SheetData? _sourceData;
+    private SheetData? _targetData;
     private IReadOnlyList<HeaderColumn> _sourceHeaders = Array.Empty<HeaderColumn>();
     private IReadOnlyList<HeaderColumn> _targetHeaders = Array.Empty<HeaderColumn>();
     private int _matchedSrcHeaderRow;
     private int _matchedTgtHeaderRow;
     private string _matchedSourceSheet = "";
     private string _matchedTargetSheet = "";
+
+    // Sample cells keyed by source column index, computed once per Match for fast reuse.
+    private Dictionary<int, IReadOnlyList<string>> _sourceSamples = new();
 
     public MainViewModel()
         : this(new WorkbookReader()) { }
@@ -48,32 +59,32 @@ public sealed partial class MainViewModel : ObservableObject
         _matcher = new ColumnMatcher(_aliases, _qualified);
         _writer = new TargetWriter(_reader);
 
-        OutputDirectory = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "CelMap");
-
-        RowsView = CollectionViewSource.GetDefaultView(Rows);
-        RowsView.GroupDescriptions.Add(new PropertyGroupDescription(nameof(MappingRowViewModel.GroupKey)));
-        // Sort by section first (needs-mapping → mapped → hidden), then keep the
-        // original target-column order within each section.
-        RowsView.SortDescriptions.Add(new SortDescription(nameof(MappingRowViewModel.GroupSort), ListSortDirection.Ascending));
-
-        TryPreloadDefaultTemplate();
+        OutputDirectory = @"C:\temp";
     }
 
-    /// <summary>Re-sort/regroup the rows view so freshly-mapped rows move into their
-    /// section. Property-change alone doesn't reposition items in a CollectionView.</summary>
-    private void RefreshRowsView()
-    {
-        RefreshSourceLinkFlags();
-        OnPropertyChanged(nameof(LinkedCount));
-        RowsView.Refresh();
-    }
+    // ====================================================================== //
+    //  Screen state                                                          //
+    // ====================================================================== //
 
-    // ---- Source file + sheet ----------------------------------------------
+    /// <summary>False = Setup screen, true = full-window Mapping screen.</summary>
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(UndoCommand))]
+    [NotifyCanExecuteChangedFor(nameof(RedoCommand))]
+    private bool _isOnMapping;
+
+    [RelayCommand]
+    private void BackToSetup() => IsOnMapping = false;
+
+    // ====================================================================== //
+    //  Setup screen: source / target files, sheets, header rows              //
+    // ====================================================================== //
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(MatchCommand))]
     private string? _sourceFilePath;
+
+    public string? SourceFileName =>
+        string.IsNullOrEmpty(SourceFilePath) ? null : Path.GetFileName(SourceFilePath);
 
     public ObservableCollection<string> SourceSheets { get; } = new();
 
@@ -84,11 +95,16 @@ public sealed partial class MainViewModel : ObservableObject
     [ObservableProperty]
     private int _sourceHeaderRow = 1;   // 1-based for the user; →0-based for Core
 
-    // ---- Target file + sheet ----------------------------------------------
+    /// <summary>First ~10 detected source headers, shown as chips so the user can confirm
+    /// the auto-detected header row is the real one.</summary>
+    public ObservableCollection<string> SourceHeaderPreview { get; } = new();
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(MatchCommand))]
     private string? _targetFilePath;
+
+    public string? TargetFileName =>
+        string.IsNullOrEmpty(TargetFilePath) ? null : Path.GetFileName(TargetFilePath);
 
     public ObservableCollection<string> TargetSheets { get; } = new();
 
@@ -99,7 +115,20 @@ public sealed partial class MainViewModel : ObservableObject
     [ObservableProperty]
     private int _targetHeaderRow = 1;
 
-    // ---- Matching / output options ----------------------------------------
+    public ObservableCollection<string> TargetHeaderPreview { get; } = new();
+
+    // Re-detect + refresh the preview when the user changes a sheet or header row by hand.
+    partial void OnSelectedSourceSheetChanged(string? value) => RefreshSourceSetup(detect: true);
+    partial void OnSelectedTargetSheetChanged(string? value) => RefreshTargetSetup(detect: true);
+    partial void OnSourceHeaderRowChanged(int value) => RefreshSourceSetup(detect: false);
+    partial void OnTargetHeaderRowChanged(int value) => RefreshTargetSetup(detect: false);
+
+    partial void OnSourceFilePathChanged(string? value) => OnPropertyChanged(nameof(SourceFileName));
+    partial void OnTargetFilePathChanged(string? value) => OnPropertyChanged(nameof(TargetFileName));
+
+    // ====================================================================== //
+    //  Output / write options                                                //
+    // ====================================================================== //
 
     [ObservableProperty]
     private int _confidenceThreshold = 80;
@@ -114,88 +143,70 @@ public sealed partial class MainViewModel : ObservableObject
     public WriteMode WriteMode => AppendMode ? WriteMode.Append : WriteMode.Overwrite;
 
     [ObservableProperty]
-    private bool _hideEmptyMappedColumns;
-
-    [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(MatchCommand))]
     [NotifyCanExecuteChangedFor(nameof(WriteCommand))]
     private bool _isBusy;
 
     [ObservableProperty]
-    private string _status = "Pick a source and target file, choose sheets, then Match.";
+    private string _status = "Drop a source and a target file, check the header rows, then Map.";
 
-    // ---- Interactive grid state -------------------------------------------
+    // ====================================================================== //
+    //  Mapping screen grids                                                  //
+    // ====================================================================== //
 
-    /// <summary>Left pane: every source column the user can click to select.</summary>
+    /// <summary>Top grid: every source column, with sample rows.</summary>
     public ObservableCollection<SourceColumnViewModel> SourceColumns { get; } = new();
 
-    /// <summary>Right pane: every target column, each showing its linked source.</summary>
+    /// <summary>Bottom grid: every target column, in fixed engine order. Never reordered.</summary>
     public ObservableCollection<MappingRowViewModel> Rows { get; } = new();
 
-    /// <summary>Grouped/sorted view of <see cref="Rows"/>: unmapped rows float to the
-    /// top under "Needs mapping" so the user focuses there; mapped rows drop into a
-    /// "Mapped" section and hidden rows sink to "Hidden". Re-sorted after every edit.</summary>
-    public ICollectionView RowsView { get; }
-
-    /// <summary>The source column the user has clicked and is about to link (left pane).</summary>
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(HasSelectedSource))]
-    [NotifyPropertyChangedFor(nameof(LinkHintText))]
-    private SourceColumnViewModel? _selectedSource;
-
-    partial void OnSelectedSourceChanged(SourceColumnViewModel? oldValue, SourceColumnViewModel? newValue)
-    {
-        if (oldValue is not null) oldValue.IsPicked = false;
-        if (newValue is not null) newValue.IsPicked = true;
-    }
-
-    public bool HasSelectedSource => SelectedSource is not null;
-
-    public string LinkHintText
-    {
-        get
-        {
-            if (SelectedSource is { } s)
-                return $"Now click a target row to link “{s.Label}”.  "
-                     + "(Click the same source again to put it back.)";
-            if (!HasMatched)
-                return "Step 1 — click “Auto-map” to let the engine fill in the matches it's confident about.";
-            return "Step 2 — review the auto-matches (click one to reject it).   "
-                 + "Step 3 — map the rest: click a source on the left, then its target row.   "
-                 + "Step 4 — click “Confirm & execute”.";
-        }
-    }
-
-    /// <summary>True once a Match has produced rows — Write only makes sense then.</summary>
+    /// <summary>True once a Match has produced rows.</summary>
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(WriteCommand))]
-    [NotifyPropertyChangedFor(nameof(LinkHintText))]
     private bool _hasMatched;
 
     public int LinkedCount => Rows.Count(r => r.IsLinked && !r.IsHidden);
 
-    // ---- File pickers ------------------------------------------------------
+    // ====================================================================== //
+    //  File pickers + drag-drop                                              //
+    // ====================================================================== //
 
     [RelayCommand]
     private void BrowseSource()
     {
-        if (PickExcelFile() is { } path)
-        {
-            SourceFilePath = path;
-            LoadSheets(path, SourceSheets, s => SelectedSourceSheet = s);
-            ResetGrid();
-        }
+        if (PickExcelFile() is { } path) LoadSourceFile(path);
     }
 
     [RelayCommand]
     private void BrowseTarget()
     {
-        if (PickExcelFile() is { } path)
-        {
-            TargetFilePath = path;
-            LoadSheets(path, TargetSheets, s => SelectedTargetSheet = s);
-            ResetGrid();
-        }
+        if (PickExcelFile() is { } path) LoadTargetFile(path);
+    }
+
+    /// <summary>Load a source workbook (from Browse or a file drop): list sheets, default to
+    /// the first, auto-detect its header row, and refresh the preview.</summary>
+    public void LoadSourceFile(string path)
+    {
+        SourceFilePath = path;
+        LoadSheets(path, SourceSheets, s => SelectedSourceSheet = s);
+        ResetGrid();
+        RefreshSourceSetup(detect: true);
+    }
+
+    public void LoadTargetFile(string path)
+    {
+        TargetFilePath = path;
+        LoadSheets(path, TargetSheets, s => SelectedTargetSheet = s);
+        ResetGrid();
+        RefreshTargetSetup(detect: true);
+    }
+
+    /// <summary>True if a dropped/picked file looks like a workbook we can read.</summary>
+    public static bool IsExcelFile(string path)
+    {
+        string ext = Path.GetExtension(path);
+        return ext.Equals(".xlsx", StringComparison.OrdinalIgnoreCase)
+            || ext.Equals(".xlsm", StringComparison.OrdinalIgnoreCase);
     }
 
     private static string? PickExcelFile()
@@ -215,7 +226,7 @@ public sealed partial class MainViewModel : ObservableObject
         {
             foreach (var name in _reader.GetSheetNames(path))
                 sheets.Add(name);
-            select(sheets.FirstOrDefault());
+            select(sheets.FirstOrDefault());   // default to first sheet (PRD: user can change)
         }
         catch (Exception ex)
         {
@@ -224,7 +235,54 @@ public sealed partial class MainViewModel : ObservableObject
         }
     }
 
-    // ---- Match: read + score, then populate the click-to-map panes --------
+    /// <summary>Auto-detect the header row for the chosen source sheet (when
+    /// <paramref name="detect"/>) and refresh the header-preview chips.</summary>
+    private void RefreshSourceSetup(bool detect)
+    {
+        if (string.IsNullOrWhiteSpace(SourceFilePath) || string.IsNullOrWhiteSpace(SelectedSourceSheet))
+        {
+            SourceHeaderPreview.Clear();
+            return;
+        }
+        TryReadHeaderPreview(SourceFilePath!, SelectedSourceSheet!, detect,
+            row => SourceHeaderRow = row, SourceHeaderRow - 1, SourceHeaderPreview);
+    }
+
+    private void RefreshTargetSetup(bool detect)
+    {
+        if (string.IsNullOrWhiteSpace(TargetFilePath) || string.IsNullOrWhiteSpace(SelectedTargetSheet))
+        {
+            TargetHeaderPreview.Clear();
+            return;
+        }
+        TryReadHeaderPreview(TargetFilePath!, SelectedTargetSheet!, detect,
+            row => TargetHeaderRow = row, TargetHeaderRow - 1, TargetHeaderPreview);
+    }
+
+    private void TryReadHeaderPreview(string path, string sheet, bool detect,
+        Action<int> setHeaderRow1Based, int currentHeaderRow0, ObservableCollection<string> preview)
+    {
+        preview.Clear();
+        try
+        {
+            var data = _reader.ReadSheet(path, sheet);
+            int headerRow0 = detect ? HeaderRowDetector.Detect(data) : currentHeaderRow0;
+            if (detect) setHeaderRow1Based(headerRow0 + 1);
+            else headerRow0 = Math.Clamp(headerRow0, 0, Math.Max(0, data.RowCount - 1));
+
+            var headers = HeaderExtractor.Extract(data, headerRow0);
+            foreach (var h in headers.Take(10))
+                preview.Add(string.IsNullOrWhiteSpace(h.Label) ? "(blank)" : h.Label);
+        }
+        catch (Exception ex)
+        {
+            Status = FriendlyError(ex);
+        }
+    }
+
+    // ====================================================================== //
+    //  Match: read + score, populate the grids, go to the mapping screen     //
+    // ====================================================================== //
 
     private bool CanMatch =>
         !IsBusy
@@ -248,7 +306,7 @@ public sealed partial class MainViewModel : ObservableObject
             int tgtHeaderRow = TargetHeaderRow - 1;
             int threshold = ConfidenceThreshold;
 
-            var (sourceData, sourceHeaders, targetHeaders, result) = await Task.Run(() =>
+            var (sourceData, targetData, sourceHeaders, targetHeaders, result) = await Task.Run(() =>
             {
                 var src = _reader.ReadSheet(sourcePath, sourceSheet);
                 var tgt = _reader.ReadSheet(targetPath, targetSheet);
@@ -258,27 +316,35 @@ public sealed partial class MainViewModel : ObservableObject
                     srcH, tgtH,
                     new MatcherOptions(ConfidenceThreshold: threshold),
                     s => src.ColumnIsEmpty(s.ColumnIndex, srcHeaderRow));
-                return (src, srcH, tgtH, res);
+                return (src, tgt, srcH, tgtH, res);
             });
 
-            // Cache for the Write step and threshold re-applies.
             _sourceData = sourceData;
+            _targetData = targetData;
             _sourceHeaders = sourceHeaders;
             _targetHeaders = targetHeaders;
             _matchedSrcHeaderRow = srcHeaderRow;
             _matchedTgtHeaderRow = tgtHeaderRow;
             _matchedSourceSheet = sourceSheet;
             _matchedTargetSheet = targetSheet;
+            _sourceSamples = BuildSourceSamples(sourceData, sourceHeaders, srcHeaderRow);
 
             PopulateGrid(result);
 
             int auto = Rows.Count(r => r.IsLinked);
-            int needsAttention = Rows.Count(r => !r.IsLinked
-                && r.Original.Status is MatchStatus.Ambiguous or MatchStatus.NeedsReview or MatchStatus.Unmatched
-                && (r.Original.Score > 0 || r.IsStrict));
-            Status = $"Auto-mapped {Rows.Count} target column(s): {auto} auto-linked, "
-                   + $"{needsAttention} need a look. Reject/adjust above, map the rest, then Confirm & execute.";
+            // Tier tally of the auto-applied rows — makes it visible whether alias/exact
+            // (the synonyms rules) actually fired, vs everything coming through as fuzzy.
+            int exact = Rows.Count(r => r.IsLinked && r.Kind == MatchKind.Exact);
+            int alias = Rows.Count(r => r.IsLinked && r.Kind == MatchKind.Alias);
+            int qual  = Rows.Count(r => r.IsLinked && r.Kind == MatchKind.Qualified);
+            int fuzzy = Rows.Count(r => r.IsLinked && r.Kind == MatchKind.Fuzzy);
+            Status = $"Auto-mapped {auto} of {Rows.Count} target column(s) "
+                   + $"[exact {exact} · alias {alias} · qualified {qual} · fuzzy {fuzzy}; "
+                   + $"{_aliases.Groups.Count} synonym groups loaded]. "
+                   + "Check the highlighted ones, map the rest, then Execute.";
             HasMatched = true;
+            ResetHistory();
+            IsOnMapping = true;   // straight into the full-window mapping screen
         }
         catch (Exception ex)
         {
@@ -291,60 +357,115 @@ public sealed partial class MainViewModel : ObservableObject
         }
     }
 
+    /// <summary>Pull the first <see cref="SampleRowCount"/> data values below the header for
+    /// every source column, once, so grid cells and slot previews are cheap.</summary>
+    private static Dictionary<int, IReadOnlyList<string>> BuildSourceSamples(
+        SheetData data, IReadOnlyList<HeaderColumn> headers, int headerRow0)
+    {
+        var map = new Dictionary<int, IReadOnlyList<string>>(headers.Count);
+        foreach (var h in headers)
+            map[h.ColumnIndex] = SampleFor(data, h.ColumnIndex, headerRow0);
+        return map;
+    }
+
+    private static IReadOnlyList<string> SampleFor(SheetData data, int colIndex, int headerRow0)
+    {
+        var cells = new List<string>(SampleRowCount);
+        for (int r = headerRow0 + 1; r <= headerRow0 + SampleRowCount; r++)
+            cells.Add(r < data.RowCount ? data.GetCell(r, colIndex).ToString() : string.Empty);
+        return cells;
+    }
+
     private void PopulateGrid(MappingResult result)
     {
-        SelectedSource = null;
-
         SourceColumns.Clear();
         foreach (var h in _sourceHeaders)
         {
             bool empty = _sourceData!.ColumnIsEmpty(h.ColumnIndex, _matchedSrcHeaderRow);
-            SourceColumns.Add(new SourceColumnViewModel(h, empty));
+            SourceColumns.Add(new SourceColumnViewModel(h, empty, SamplesFor(h)));
         }
 
         Rows.Clear();
         foreach (var m in result.Mappings)
-            Rows.Add(new MappingRowViewModel(m));
+        {
+            var row = new MappingRowViewModel(m);
+            // Seed the preview for auto-linked slots.
+            if (row.LinkedSource is { } src)
+                row.SetLink(src, SourceIsEmpty, SamplesFor);
+            Rows.Add(row);
+        }
 
-        RefreshRowsView();
+        RefreshSourceLinkFlags();
+        OnPropertyChanged(nameof(LinkedCount));
     }
 
-    // ---- Click-to-map interaction -----------------------------------------
+    private IReadOnlyList<string> SamplesFor(HeaderColumn source) =>
+        _sourceSamples.TryGetValue(source.ColumnIndex, out var s) ? s : Array.Empty<string>();
 
-    /// <summary>Left-pane click: select a source column to link next.</summary>
-    [RelayCommand]
-    private void SelectSource(SourceColumnViewModel? source)
+    // ====================================================================== //
+    //  Mapping interaction (called from the view)                            //
+    // ====================================================================== //
+
+    /// <summary>Map a target slot to a source column (the user clicked a source option in the
+    /// slot's inline picker). Source reuse is allowed.</summary>
+    public void MapSlot(MappingRowViewModel? row, SourceColumnViewModel? source)
     {
-        // Click the already-selected source again to deselect.
-        SelectedSource = ReferenceEquals(SelectedSource, source) ? null : source;
+        if (row is null || source is null) return;
+        PushHistory();
+        row.SetLink(source.Column, SourceIsEmpty, SamplesFor);
+        AfterMappingEdit();
     }
 
-    /// <summary>Right-pane click on a target row. Links the pending source, or
-    /// clears the row if no source is selected (or the same source is re-clicked).</summary>
-    [RelayCommand]
-    private void LinkTarget(MappingRowViewModel? row)
+    /// <summary>Fill a target column with a typed literal applied to every data row (the user
+    /// typed a value in the slot's picker box). Replaces any mapped source.</summary>
+    public void SetConstantValue(MappingRowViewModel? row, string? text)
     {
         if (row is null) return;
-
-        if (SelectedSource is { } src)
-        {
-            // Re-clicking the source it already holds clears the link (toggle).
-            bool sameAsCurrent = row.LinkedSource?.ColumnIndex == src.Column.ColumnIndex;
-            row.SetLink(sameAsCurrent ? null : src.Column, SourceIsEmpty);
-            SelectedSource = null;
-        }
-        else
-        {
-            // No pending source → a click clears whatever the row had.
-            row.SetLink(null, SourceIsEmpty);
-        }
-
-        RefreshRowsView();
+        text = text?.Trim() ?? "";
+        if (text.Length == 0) return;
+        PushHistory();
+        row.SetConstant(text, SampleRowCount);
+        AfterMappingEdit();
     }
 
-    /// <summary>Called by the View when a row's Hide checkbox is toggled — regroup so
-    /// the hidden row sinks out of the way immediately.</summary>
-    public void OnRowHiddenChanged() => RefreshRowsView();
+    /// <summary>Clear a target slot back to empty — drops a mapped source or a typed constant
+    /// (the user clicked the slot header).</summary>
+    public void ClearSlot(MappingRowViewModel? row)
+    {
+        if (row is null || !row.IsFilled) return;
+        PushHistory();
+        row.SetLink(null, SourceIsEmpty, SamplesFor);   // also clears any constant
+        AfterMappingEdit();
+    }
+
+    /// <summary>Open the inline source picker on a slot (the user clicked the body to change it).</summary>
+    public void OpenPicker(MappingRowViewModel? row)
+    {
+        if (row is null) return;
+        row.IsPickerOpen = true;
+    }
+
+    /// <summary>Hide or show a target column. Hidden columns collapse to a thin strip and are
+    /// excluded from the write. A <b>filled</b> column (mapped source or typed constant) can
+    /// never be hidden — there's content destined for it, so hiding would silently drop it.</summary>
+    public void SetHidden(MappingRowViewModel? row, bool hidden)
+    {
+        if (row is null || row.IsHidden == hidden) return;
+        if (hidden && row.IsFilled)
+        {
+            Status = $"“{row.TargetLabel}” is mapped — clear it before hiding.";
+            return;
+        }
+        PushHistory();
+        row.IsHidden = hidden;
+        AfterMappingEdit();
+    }
+
+    private void AfterMappingEdit()
+    {
+        RefreshSourceLinkFlags();
+        OnPropertyChanged(nameof(LinkedCount));
+    }
 
     private bool SourceIsEmpty(HeaderColumn source) =>
         _sourceData?.ColumnIsEmpty(source.ColumnIndex, _matchedSrcHeaderRow) ?? false;
@@ -358,17 +479,104 @@ public sealed partial class MainViewModel : ObservableObject
             s.IsLinked = linked.Contains(s.Column.ColumnIndex);
     }
 
-    // ---- Threshold re-apply (fuzzy only — tiers are score 100) -------------
+    // ====================================================================== //
+    //  Undo / redo — mapping edits only                                      //
+    // ====================================================================== //
+
+    /// <summary>A snapshot of the mapping state: per-target linked source (or null), typed
+    /// constants, and the hidden set.</summary>
+    private readonly record struct MapSnapshot(
+        IReadOnlyDictionary<int, int?> Links,
+        IReadOnlyDictionary<int, string> Constants,
+        IReadOnlySet<int> Hidden);
+
+    private readonly Stack<MapSnapshot> _undo = new();
+    private readonly Stack<MapSnapshot> _redo = new();
+
+    private MapSnapshot Snapshot()
+    {
+        var links = Rows.ToDictionary(
+            r => r.TargetColumn.ColumnIndex,
+            r => (int?)r.LinkedSource?.ColumnIndex);
+        var constants = Rows.Where(r => r.IsConstant)
+            .ToDictionary(r => r.TargetColumn.ColumnIndex, r => r.ConstantValue!);
+        var hidden = Rows.Where(r => r.IsHidden).Select(r => r.TargetColumn.ColumnIndex).ToHashSet();
+        return new MapSnapshot(links, constants, hidden);
+    }
+
+    private void ResetHistory()
+    {
+        _undo.Clear();
+        _redo.Clear();
+        UndoCommand.NotifyCanExecuteChanged();
+        RedoCommand.NotifyCanExecuteChanged();
+    }
+
+    /// <summary>Record the current state before an edit, and invalidate the redo stack.</summary>
+    private void PushHistory()
+    {
+        _undo.Push(Snapshot());
+        _redo.Clear();
+        UndoCommand.NotifyCanExecuteChanged();
+        RedoCommand.NotifyCanExecuteChanged();
+    }
+
+    private bool CanUndo => IsOnMapping && _undo.Count > 0;
+    private bool CanRedo => IsOnMapping && _redo.Count > 0;
+
+    [RelayCommand(CanExecute = nameof(CanUndo))]
+    private void Undo()
+    {
+        _redo.Push(Snapshot());
+        Restore(_undo.Pop());
+        UndoCommand.NotifyCanExecuteChanged();
+        RedoCommand.NotifyCanExecuteChanged();
+    }
+
+    [RelayCommand(CanExecute = nameof(CanRedo))]
+    private void Redo()
+    {
+        _undo.Push(Snapshot());
+        Restore(_redo.Pop());
+        UndoCommand.NotifyCanExecuteChanged();
+        RedoCommand.NotifyCanExecuteChanged();
+    }
+
+    /// <summary>Apply a snapshot back onto the rows (links + hidden), then refresh derived state.</summary>
+    private void Restore(MapSnapshot snap)
+    {
+        var byCol = _sourceHeaders.ToDictionary(h => h.ColumnIndex);
+        foreach (var row in Rows)
+        {
+            int tgt = row.TargetColumn.ColumnIndex;
+            if (snap.Constants.TryGetValue(tgt, out var constant))
+            {
+                row.SetConstant(constant, SampleRowCount);
+            }
+            else
+            {
+                HeaderColumn? source = snap.Links.TryGetValue(tgt, out var srcIdx) && srcIdx is int i
+                    && byCol.TryGetValue(i, out var h) ? h : null;
+                row.SetLink(source, SourceIsEmpty, SamplesFor);
+            }
+            row.IsHidden = snap.Hidden.Contains(tgt);
+        }
+        AfterMappingEdit();
+    }
+
+    // ====================================================================== //
+    //  Threshold re-apply (fuzzy only — tiers are score 100)                 //
+    // ====================================================================== //
 
     partial void OnConfidenceThresholdChanged(int value)
     {
         if (!HasMatched || _sourceData is null) return;
 
-        // Re-run the engine at the new threshold and re-seed auto links, but
-        // preserve the user's manual overrides so the slider doesn't undo clicks.
+        // Re-run the engine at the new threshold and re-seed auto links, but preserve the
+        // user's manual overrides so the slider doesn't undo clicks.
         var manual = Rows.Where(r => r.IsManualOverride)
-                         .ToDictionary(r => r.TargetColumn.ColumnIndex,
-                                       r => r.LinkedSource);
+                         .ToDictionary(r => r.TargetColumn.ColumnIndex, r => r.LinkedSource);
+        var hidden = Rows.Where(r => r.IsHidden).Select(r => r.TargetColumn.ColumnIndex).ToHashSet();
 
         var result = _matcher.Match(
             _sourceHeaders, _targetHeaders,
@@ -380,37 +588,45 @@ public sealed partial class MainViewModel : ObservableObject
         {
             var row = new MappingRowViewModel(m);
             if (manual.TryGetValue(m.TargetColumn.ColumnIndex, out var overridden))
-                row.SetLink(overridden, SourceIsEmpty);
+                row.SetLink(overridden, SourceIsEmpty, SamplesFor);
+            else if (row.LinkedSource is { } src)
+                row.SetLink(src, SourceIsEmpty, SamplesFor);
+            row.IsHidden = hidden.Contains(m.TargetColumn.ColumnIndex);
             Rows.Add(row);
         }
-        RefreshRowsView();
+        ResetHistory();   // a fresh auto-apply is a new baseline; don't undo across it
+        AfterMappingEdit();
         Status = $"Re-applied threshold {value}. {LinkedCount} column(s) linked.";
     }
 
-    // ---- Write: consume the edited links ----------------------------------
+    // ====================================================================== //
+    //  Write: consume the edited links                                       //
+    // ====================================================================== //
 
     private bool CanWrite => HasMatched && !IsBusy;
 
     [RelayCommand(CanExecute = nameof(CanWrite))]
     private async Task WriteAsync()
     {
-        // Build the column map from the current (possibly hand-edited) links,
-        // skipping hidden rows (PRD §2.3 hide/show).
         var columnMap = new Dictionary<int, int>();
+        var constantColumns = new Dictionary<int, string>();
         foreach (var row in Rows)
         {
-            if (row.IsHidden || row.LinkedSource is not { } src) continue;
-            columnMap[src.ColumnIndex] = row.TargetColumn.ColumnIndex;
+            if (row.IsHidden) continue;
+            if (row.ConstantValue is { } constant)
+                constantColumns[row.TargetColumn.ColumnIndex] = constant;
+            else if (row.LinkedSource is { } src)
+                columnMap[src.ColumnIndex] = row.TargetColumn.ColumnIndex;
         }
 
-        if (columnMap.Count == 0)
+        int filledCount = columnMap.Count + constantColumns.Count;
+        if (filledCount == 0)
         {
-            Status = "Nothing linked — click a source then a target to map at least one column before writing.";
+            Status = "Nothing mapped — pick a source or type a value for at least one target column before writing.";
             return;
         }
 
-        // Overwrite is destructive to the copy's data rows: confirm first (PRD §2.5).
-        if (WriteMode == WriteMode.Overwrite && !ConfirmOverwrite(columnMap.Count))
+        if (WriteMode == WriteMode.Overwrite && !ConfirmOverwrite(filledCount))
         {
             Status = "Overwrite cancelled.";
             return;
@@ -428,7 +644,7 @@ public sealed partial class MainViewModel : ObservableObject
             var writeResult = await Task.Run(() => _writer.Write(new WriteRequest(
                 sourcePath, _matchedSourceSheet, _matchedSrcHeaderRow,
                 targetPath, _matchedTargetSheet, _matchedTgtHeaderRow,
-                columnMap, outputDir, mode)));
+                columnMap, outputDir, mode, constantColumns)));
 
             string warnings = writeResult.Warnings.Count > 0
                 ? "\nWarnings:\n  • " + string.Join("\n  • ", writeResult.Warnings)
@@ -454,30 +670,26 @@ public sealed partial class MainViewModel : ObservableObject
     private bool ConfirmOverwrite(int columnCount) =>
         OverwriteConfirm?.Invoke(columnCount) ?? true;
 
-    // ---- Helpers -----------------------------------------------------------
+    // ====================================================================== //
+    //  Helpers                                                               //
+    // ====================================================================== //
 
     private void ResetGrid()
     {
         HasMatched = false;
-        SelectedSource = null;
         Rows.Clear();
         SourceColumns.Clear();
+        ResetHistory();
         OnPropertyChanged(nameof(LinkedCount));
     }
 
     private static string FriendlyError(Exception ex)
     {
-        // The known Tracer 1/2 gap: ClosedXML throws a raw IOException when the
-        // file is open in Excel. Surface it as guidance, never a crash (PRD §10).
+        // The known Tracer 1/2 gap: ClosedXML throws a raw IOException when the file is
+        // open in Excel. Surface it as guidance, never a crash (PRD §10).
         if (ex is IOException)
             return "Could not open a file — it may be open in Excel. "
                  + "Close it there and try again.\n(" + ex.Message + ")";
         return $"Error: {ex.Message}";
-    }
-
-    /// <summary>Placeholder for the Tracer 5 settings-driven default template.</summary>
-    private void TryPreloadDefaultTemplate()
-    {
-        // Intentionally empty until settings persistence lands (Tracer 5).
     }
 }

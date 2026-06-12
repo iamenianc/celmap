@@ -99,15 +99,39 @@ public class ColumnMatcherTests
     }
 
     [Fact]
-    public void EmptySourceColumn_IsFlagged()
+    public void EmptySourceColumn_IsExcluded_NotMatched()
     {
+        // A source column with a header but no data underneath carries nothing to map,
+        // so it must not participate: the only source drops out and the target is left
+        // Unmatched rather than matched-but-flagged.
         var result = _matcher.Match(
             Headers("Region"),
             Headers("Region"),
             new MatcherOptions(),
             sourceColumnIsEmpty: _ => true);
 
-        Assert.True(result.Mappings[0].SourceColumnIsEmpty);
+        var m = result.Mappings[0];
+        Assert.Equal(MatchStatus.Unmatched, m.Status);
+        Assert.Null(m.MatchedSource);
+        Assert.False(m.SourceColumnIsEmpty);   // nothing empty was ever picked
+    }
+
+    [Fact]
+    public void DuplicateHeader_OneEmpty_AutoMatchesTheNonEmptyOne()
+    {
+        // The Dyson UAT case: "Member ID" appears twice, one block empty. The empty
+        // duplicate must be ignored so the populated one auto-matches instead of the
+        // pair colliding into a false Ambiguous.
+        var src = Headers("Member ID", "Member ID");   // col 0 populated, col 1 empty
+        var result = _matcher.Match(
+            src,
+            Headers("Member ID"),
+            new MatcherOptions(),
+            sourceColumnIsEmpty: s => s.ColumnIndex == 1);
+
+        var m = result.Mappings[0];
+        Assert.Equal(MatchStatus.Auto, m.Status);
+        Assert.Equal(0, m.MatchedSource!.ColumnIndex);
     }
 
     [Fact]
@@ -207,6 +231,30 @@ public class ColumnMatcherTests
         Assert.Equal(MatchStatus.Auto, m.Status);
         Assert.Equal("Date of Birth", m.MatchedSource!.Label);
         Assert.Equal(MatchKind.Exact, m.Candidates[0].Kind);
+    }
+
+    [Fact]
+    public void Fuzzy_ScoresAgainstWholeSynonymGroup_NotJustLiteralTarget()
+    {
+        // Target "DOB" fuzzes terribly against a real source like "Birth Date" (different
+        // letters entirely). But "Birth Date" is a synonym of DOB, so a near-miss spelling
+        // "Birth Dt" should fuzzy-match strongly via the GROUP member "Birth Date" — even
+        // though it's not an exact alias and scores ~nothing against the literal "DOB".
+        var matcher = new ColumnMatcher(new AliasRules(new[]
+        {
+            new AliasGroup(new[] { "DOB", "Date of Birth", "Birth Date" }),
+        }));
+
+        var result = matcher.Match(
+            Headers("Birth Dt"),
+            Headers("DOB"),
+            new MatcherOptions(ConfidenceThreshold: 80));
+
+        var m = result.Mappings[0];
+        // Without group expansion this would be a sub-threshold NeedsReview against "DOB".
+        Assert.Equal(MatchStatus.Auto, m.Status);
+        Assert.Equal("Birth Dt", m.MatchedSource!.Label);
+        Assert.Equal(MatchKind.Fuzzy, m.Candidates[0].Kind);   // stays fuzzy, not promoted
     }
 
     [Fact]

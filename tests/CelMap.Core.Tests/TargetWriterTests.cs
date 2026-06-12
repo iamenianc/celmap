@@ -69,6 +69,92 @@ public class TargetWriterTests : IDisposable
     }
 
     [Fact]
+    public void Write_ConstantColumn_FillsEveryDataRow_AsText()
+    {
+        var sourcePath = CreateWorkbook(wb =>
+        {
+            var ws = wb.AddWorksheet("Data");
+            ws.Cell(1, 1).Value = "Name";
+            ws.Cell(2, 1).Value = "Alice";
+            ws.Cell(3, 1).Value = "Bob";
+            ws.Cell(4, 1).Value = "Cara";
+        });
+        var targetPath = CreateWorkbook(wb =>
+        {
+            var ws = wb.AddWorksheet("Report");
+            ws.Cell(1, 1).Value = "Name";
+            ws.Cell(1, 2).Value = "Status";   // target col index 1, filled by a constant
+        });
+
+        var outputDir = Path.Combine(_tempDir, "output");
+        var writer = new TargetWriter(new WorkbookReader());
+
+        var request = new WriteRequest(
+            sourcePath, "Data", 0,
+            targetPath, "Report", 0,
+            new Dictionary<int, int> { [0] = 0 },          // Name ← Name
+            outputDir,
+            ConstantColumns: new Dictionary<int, string> { [1] = "Active" });
+
+        var result = writer.Write(request);
+
+        using var wb = new XLWorkbook(result.OutputFilePath);
+        var ws = wb.Worksheet("Report");
+        // every data row of the constant column carries the literal
+        Assert.Equal("Active", ws.Cell(2, 2).GetString());
+        Assert.Equal("Active", ws.Cell(3, 2).GetString());
+        Assert.Equal("Active", ws.Cell(4, 2).GetString());
+        // and the mapped column still copied
+        Assert.Equal("Alice", ws.Cell(2, 1).GetString());
+    }
+
+    [Fact]
+    public void Write_ConstantColumn_IsoDate_WrittenAsRealDate()
+    {
+        var sourcePath = CreateWorkbook(wb =>
+        {
+            var ws = wb.AddWorksheet("Data");
+            ws.Cell(1, 1).Value = "Name";
+            ws.Cell(2, 1).Value = "Alice";
+        });
+        var targetPath = CreateWorkbook(wb =>
+        {
+            var ws = wb.AddWorksheet("Report");
+            ws.Cell(1, 1).Value = "Name";
+            ws.Cell(1, 2).Value = "ReviewDate";
+        });
+
+        var outputDir = Path.Combine(_tempDir, "output");
+        var writer = new TargetWriter(new WorkbookReader());
+
+        var request = new WriteRequest(
+            sourcePath, "Data", 0,
+            targetPath, "Report", 0,
+            new Dictionary<int, int> { [0] = 0 },
+            outputDir,
+            ConstantColumns: new Dictionary<int, string> { [1] = "2026-06-13" });
+
+        var result = writer.Write(request);
+
+        using var wb = new XLWorkbook(result.OutputFilePath);
+        var cell = wb.Worksheet("Report").Cell(2, 2);
+        Assert.Equal(XLDataType.DateTime, cell.DataType);
+        Assert.Equal(new DateTime(2026, 6, 13), cell.GetDateTime());
+    }
+
+    [Theory]
+    [InlineData("Active", false)]
+    [InlineData("2026-06-13", true)]
+    [InlineData("2026/06/13", false)]   // wrong separator → text
+    [InlineData("13-06-2026", false)]   // not ISO order → text
+    [InlineData("2026-13-40", false)]   // ISO shape but invalid date → text
+    public void ParseConstant_TreatsOnlyIsoDatesAsDates(string input, bool expectDate)
+    {
+        var value = TargetWriter.ParseConstant(input);
+        Assert.Equal(expectDate ? CellValueType.DateTime : CellValueType.Text, value.Type);
+    }
+
+    [Fact]
     public void Write_NeverModifiesOriginalTarget()
     {
         var sourcePath = CreateWorkbook(wb =>

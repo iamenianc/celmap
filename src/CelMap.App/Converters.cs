@@ -30,6 +30,18 @@ public sealed class KindToBrushConverter : IValueConverter
         => throw new NotSupportedException();
 }
 
+/// <summary>Visible when the bound string equals the converter parameter — used to switch a
+/// target slot's body between its "Blank", "Picker" and "Preview" states.</summary>
+public sealed class StringMatchToVisibilityConverter : IValueConverter
+{
+    public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
+        => string.Equals(value as string, parameter as string, StringComparison.Ordinal)
+            ? Visibility.Visible : Visibility.Collapsed;
+
+    public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
+        => throw new NotSupportedException();
+}
+
 public sealed class BoolToVisibilityConverter : IValueConverter
 {
     public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
