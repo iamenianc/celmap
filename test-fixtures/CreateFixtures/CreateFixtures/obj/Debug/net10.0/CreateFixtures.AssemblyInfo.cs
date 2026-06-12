@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("CreateFixtures")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+8af2591d7cde42c77a8001e5bff39fb1c5b03e6a")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+aea785ca024781a01e8b820b16334c0bf24a69db")]
 [assembly: System.Reflection.AssemblyProductAttribute("CreateFixtures")]
 [assembly: System.Reflection.AssemblyTitleAttribute("CreateFixtures")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
