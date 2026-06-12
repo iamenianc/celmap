@@ -5,10 +5,17 @@
 **Status:** Ready for Development
 
 **Tech Stack:**
-- ExcelDataReader (read Excel files)
-- Raffinert.FuzzySharp (column matching)
+- ClosedXML (read **and** write `.xlsx` while preserving target formatting)
+- FuzzySharp (column matching)
 - CommunityToolkit.Mvvm (WPF/MVVM)
 - All open source, MIT/Apache licensed
+
+> **Note on Excel library choice:** the original draft listed `ExcelDataReader`,
+> which is **read-only** and cannot satisfy the Output requirements (writing
+> values into a copy of the target while preserving its formatting). ClosedXML
+> (or EPPlus, but EPPlus is non-commercial-only under its current license)
+> handles both read and write. `.xls` (legacy binary) is not supported by
+> ClosedXML — see §2.1 for the supported-format decision.
 
 ---
 
@@ -25,35 +32,46 @@ A desktop utility that maps columns between two arbitrary Excel files. User sele
 - User specifies target/template Excel file (never modified; always work on a copy)
 - Optionally preload a default template file from settings
 - Dropdown to select sheet from each file
-- Support for common Excel formats
+- Supported format: `.xlsx` (and `.xlsm`, read as data). Legacy `.xls` is out of
+  scope for v1 — ClosedXML does not read it. If `.xls` support is later required,
+  add a conversion step or a separate reader; do not block v1 on it.
 
 ### 2.2 Header Row Identification
 - User identifies which row contains column headers in source and target
 - Manual selection approach (user has final say on what's a header)
 
 ### 2.3 Column Mapping
-- Match source columns to target columns
-- Surface confidence/quality of matches to user
+- Match source columns to target columns using fuzzy name matching
+- Surface confidence/quality of matches to user (e.g. a 0–100 score per match)
+- Apply matches automatically above a configurable confidence threshold; leave
+  low-confidence matches unset and flagged for manual review
 - Allow user to override or adjust any mapping
-- Handle ambiguous cases gracefully
+- Handle ambiguous cases gracefully (when two source columns score similarly
+  against one target, present both rather than silently picking one)
 - Allow user to hide/show columns during preview (to reduce noise from junk/unwanted columns)
-- Save and load mapping profiles by file pair (source + target files remembered)
-- If same file pair is used again, load last profile automatically or offer as quick option
+- Save and load mapping profiles by column pairs (source column name → target column name), independent of filenames
+- If the same column names are present in a new session, load the last profile automatically or offer it as a quick option
 - Map by column name, not position (column order in files is irrelevant)
-- Warn if mapping a source column that contains no data (all empty/null)
+- Warn if a mapped source column contains no data (all empty/null)
 
 ### 2.4 Type Handling
-- Detect intended data types in target columns
-- Attempt to convert source data to target types
-- Surface conversion issues without blocking processing
-- Provide user visibility into what was converted and what failed
+- Do not perform any type or format conversion. Values are written exactly as they exist in the source — if the source cell is text, write text; if it is a number, write the number; if it is a date serial, write the date serial.
+- Type conversion is out of scope for v1 and is handled by a separate downstream process.
 
 ### 2.5 Output
 - Make mapped data available (clipboard, file, or integration point)
 - Include summary of what was processed and any issues encountered
-- Default: write mapped data to target file starting at row 2 (preserving any header)
-- Option: append to end of existing data in target file (find last used row)
-- When writing to file, save copy to configured output directory (default: C:/temp, configurable in settings)
+- Two write modes, selectable per run via a visible UI toggle:
+  - **Overwrite** (default): write mapped data starting at the row immediately
+    below the target header row (typically row 2), replacing existing data rows.
+    Always show a confirmation warning before proceeding.
+  - **Append**: write starting at the first empty row after the last row that
+    contains data (last used row), leaving existing data in place
+- Output is always written to a **copy** of the target file, never the original
+  (per §2.1). The copy is saved to the configured output directory. Default:
+  `%USERPROFILE%\Documents\CelMap` (created on first run if missing), configurable
+  in settings. (Avoid `C:\temp` as a default — it is not guaranteed to exist and
+  is not a conventional user-writable location.)
 - Paste values only (no formulas, formatting, or styles from source)
 - Preserve all existing formatting in target file (cells, columns, rows)
 
@@ -75,8 +93,7 @@ A desktop utility that maps columns between two arbitrary Excel files. User sele
 - Load target file
 - Identify headers in each
 - Match source columns to target columns
-- Detect target column data types
-- Convert source values to target types
+- Copy source values verbatim into mapped target columns
 - Report results to user
 - Output mapped data
 
@@ -96,26 +113,23 @@ Consider:
 
 ## 6. Processing
 
-Process all rows. Never block on error. Report what succeeded, what failed, why. Load and write data in arrays/bulk operations, not row-by-row iteration. Auto-detect number of rows to transfer: include all used rows in source file. Hard limit: 100,000 rows maximum.
-
----
-
-## 7. Type Conversion
-
-Attempt conversion to target type. On failure, retain original value and log issue. Handle at minimum: numbers (with format variants), dates (with format variants), booleans (with value mapping).
+Process all rows. Never block on error. Report what succeeded, what failed, why. Load and write data in arrays/bulk operations, not row-by-row iteration. Auto-detect number of rows to transfer: include all used (non-empty) rows in the source file below its header row. Hard limit: 100,000 data rows. If the source exceeds the limit, **stop before processing and warn the user** (do not silently truncate) so they can split the file or confirm a partial run.
 
 ---
 
 ## 8. Reporting
 
-Show user a summary and detailed breakdown of conversions. Include what succeeded, what failed, why. Let user decide if output is acceptable.
+Show user a summary of what was mapped and written. Include any rows skipped or cells that could not be written. Let user decide if output is acceptable.
 
 ---
 
 ## 9. Architecture Considerations
 
-- Separate core logic (DLL) from UI (EXE) to allow reuse by legacy apps
-- Config externalized for user customization
+- Separate core logic (class library / DLL) from UI (WPF EXE) so the mapping +
+  conversion engine can be referenced by other apps or automated/headless callers.
+  Target the core library at **current .NET (8/9)**. Legacy .NET Framework
+  consumers are not a requirement.
+- Config externalized (settings file) for user customization
 - No heavy dependencies; use open source only
 
 ---
@@ -132,19 +146,8 @@ Show user a summary and detailed breakdown of conversions. Include what succeede
 ## 11. Success
 
 - Maps columns correctly across arbitrary Excel files
-- Handles type mismatches without crashing
-- Reports issues clearly so user knows what was converted and what wasn't
+- Copies values verbatim without unintended conversion
+- Reports issues clearly so user knows what was mapped and what was skipped
 - Fast enough for typical workflows
 - Easy to use (no special training needed)
 
----
-
-## 12. Dependencies
-
-Open source libraries only. No licensing costs.
-
----
-
-## 13. Timeline
-
-Roughly 4–5 weeks for core functionality + enhancements. Adjust based on actual implementation complexity.
