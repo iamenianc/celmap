@@ -101,6 +101,80 @@ public class TargetWriterTests : IDisposable
     }
 
     [Fact]
+    public void Write_AppendMode_WritesAfterLastUsedRow_LeavingExistingData()
+    {
+        var sourcePath = CreateWorkbook(wb =>
+        {
+            var ws = wb.AddWorksheet("Data");
+            ws.Cell(1, 1).Value = "Name";   // header
+            ws.Cell(2, 1).Value = "Carol";
+            ws.Cell(3, 1).Value = "Dave";
+        });
+
+        // Target already has two data rows below its header.
+        var targetPath = CreateWorkbook(wb =>
+        {
+            var ws = wb.AddWorksheet("Report");
+            ws.Cell(1, 1).Value = "Name";
+            ws.Cell(2, 1).Value = "Alice";
+            ws.Cell(3, 1).Value = "Bob";
+        });
+
+        var outputDir = Path.Combine(_tempDir, "output");
+        var writer = new TargetWriter(new WorkbookReader());
+
+        var result = writer.Write(new WriteRequest(
+            sourcePath, "Data", 0,
+            targetPath, "Report", 0,
+            new Dictionary<int, int> { [0] = 0 },
+            outputDir,
+            WriteMode.Append));
+
+        Assert.Equal(2, result.RowsWritten);
+
+        using var wb = new XLWorkbook(result.OutputFilePath);
+        var ws = wb.Worksheet("Report");
+        // existing data untouched
+        Assert.Equal("Alice", ws.Cell(2, 1).GetString());
+        Assert.Equal("Bob",   ws.Cell(3, 1).GetString());
+        // new data appended after the last used row
+        Assert.Equal("Carol", ws.Cell(4, 1).GetString());
+        Assert.Equal("Dave",  ws.Cell(5, 1).GetString());
+    }
+
+    [Fact]
+    public void Write_OverwriteMode_ReplacesDataRowsFromBelowHeader()
+    {
+        var sourcePath = CreateWorkbook(wb =>
+        {
+            var ws = wb.AddWorksheet("Data");
+            ws.Cell(1, 1).Value = "Name";
+            ws.Cell(2, 1).Value = "Carol";
+        });
+
+        var targetPath = CreateWorkbook(wb =>
+        {
+            var ws = wb.AddWorksheet("Report");
+            ws.Cell(1, 1).Value = "Name";
+            ws.Cell(2, 1).Value = "Alice";   // will be overwritten
+        });
+
+        var outputDir = Path.Combine(_tempDir, "output");
+        var writer = new TargetWriter(new WorkbookReader());
+
+        var result = writer.Write(new WriteRequest(
+            sourcePath, "Data", 0,
+            targetPath, "Report", 0,
+            new Dictionary<int, int> { [0] = 0 },
+            outputDir,
+            WriteMode.Overwrite));   // default, but explicit for clarity
+
+        using var wb = new XLWorkbook(result.OutputFilePath);
+        var ws = wb.Worksheet("Report");
+        Assert.Equal("Carol", ws.Cell(2, 1).GetString());   // replaced from row below header
+    }
+
+    [Fact]
     public void Write_OutputGoesToConfiguredDirectory()
     {
         var sourcePath = CreateWorkbook(wb =>

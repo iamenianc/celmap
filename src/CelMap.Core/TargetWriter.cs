@@ -34,9 +34,23 @@ public sealed class TargetWriter : ITargetWriter
         // find the 1-based row number in the target sheet that corresponds to
         // the target header row (which is expressed as 0-based index into the
         // used range — we need the actual sheet row number)
-        int targetFirstUsedRow = ws.RangeUsed()?.FirstRow().RowNumber() ?? 1;
+        var usedRange = ws.RangeUsed();
+        int targetFirstUsedRow = usedRange?.FirstRow().RowNumber() ?? 1;
         int targetHeaderSheetRow = targetFirstUsedRow + req.TargetHeaderRow;
-        int targetDataStartSheetRow = targetHeaderSheetRow + 1;
+
+        // Overwrite: start on the row right below the header, replacing data rows.
+        // Append: start on the first empty row after the last used row (PRD §2.5),
+        // never above the header (an empty template appends right below it).
+        int targetDataStartSheetRow;
+        if (req.Mode == WriteMode.Append)
+        {
+            int lastUsedRow = usedRange?.LastRow().RowNumber() ?? targetHeaderSheetRow;
+            targetDataStartSheetRow = Math.Max(lastUsedRow + 1, targetHeaderSheetRow + 1);
+        }
+        else
+        {
+            targetDataStartSheetRow = targetHeaderSheetRow + 1;
+        }
 
         // ClosedXML column numbers are 1-based; our ColumnMap keys/values are
         // 0-based indices into SheetData, which starts at firstCol of the used range.

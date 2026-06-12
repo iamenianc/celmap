@@ -5,115 +5,394 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:CelMap.App"
         mc:Ignorable="d"
-        Title="CelMap — Excel Column Mapper" Height="460" Width="720"
+        Title="CelMap — Excel Column Mapper"
+        Height="820" Width="1180" MinHeight="600" MinWidth="940"
+        Background="{StaticResource WindowBg}"
         d:DataContext="{d:DesignInstance local:MainViewModel}">
-    <Window.Resources>
-        <Style TargetType="Label">
-            <Setter Property="Padding" Value="0,0,0,2" />
-        </Style>
-        <Style TargetType="TextBox">
-            <Setter Property="VerticalContentAlignment" Value="Center" />
-            <Setter Property="Padding" Value="4,2" />
-        </Style>
-        <Style TargetType="ComboBox">
-            <Setter Property="Padding" Value="4,2" />
-        </Style>
-    </Window.Resources>
 
-    <Grid Margin="16">
+    <Grid Margin="18">
         <Grid.RowDefinitions>
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />   <!-- file/sheet setup -->
+            <RowDefinition Height="Auto" />   <!-- options strip -->
+            <RowDefinition Height="Auto" />   <!-- link hint banner -->
+            <RowDefinition Height="*" />      <!-- two-pane mapper -->
+            <RowDefinition Height="Auto" />   <!-- status footer -->
         </Grid.RowDefinitions>
-        <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="*" />
-            <ColumnDefinition Width="16" />
-            <ColumnDefinition Width="*" />
-        </Grid.ColumnDefinitions>
 
-        <!-- Source panel -->
-        <GroupBox Grid.Row="0" Grid.Column="0" Header="Source" Padding="10">
-            <StackPanel>
-                <Label Content="File" />
-                <Grid>
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="Auto" />
-                    </Grid.ColumnDefinitions>
-                    <TextBox Grid.Column="0" Text="{Binding SourceFilePath}" IsReadOnly="True" />
-                    <Button Grid.Column="1" Content="Browse…" Margin="6,0,0,0" Padding="10,2"
-                            Command="{Binding BrowseSourceCommand}" />
-                </Grid>
+        <!-- ============ Row 0: Source / Target setup ============ -->
+        <Grid Grid.Row="0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="14" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
 
-                <Label Content="Sheet" Margin="0,8,0,0" />
-                <ComboBox ItemsSource="{Binding SourceSheets}"
-                          SelectedItem="{Binding SelectedSourceSheet}" />
+            <!-- Source card -->
+            <Border Grid.Column="0" Style="{StaticResource Card}">
+                <StackPanel>
+                    <TextBlock Text="SOURCE  ·  the file you're copying data FROM" Style="{StaticResource SectionHeader}" />
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBox Grid.Column="0" Text="{Binding SourceFilePath}" IsReadOnly="True"
+                                 VerticalContentAlignment="Center" />
+                        <Button Grid.Column="1" Content="Browse…" Style="{StaticResource GhostButton}"
+                                Margin="8,0,0,0" Command="{Binding BrowseSourceCommand}" />
+                    </Grid>
+                    <Grid Margin="0,10,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="12" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0">
+                            <Label Content="Sheet" />
+                            <ComboBox ItemsSource="{Binding SourceSheets}"
+                                      SelectedItem="{Binding SelectedSourceSheet}" />
+                        </StackPanel>
+                        <StackPanel Grid.Column="2">
+                            <Label Content="Header row" />
+                            <TextBox Text="{Binding SourceHeaderRow}" Width="70" HorizontalAlignment="Left" />
+                        </StackPanel>
+                    </Grid>
+                </StackPanel>
+            </Border>
 
-                <Label Content="Header row" Margin="0,8,0,0" />
-                <TextBox Text="{Binding SourceHeaderRow}" Width="60" HorizontalAlignment="Left" />
-            </StackPanel>
-        </GroupBox>
+            <!-- Target card -->
+            <Border Grid.Column="2" Style="{StaticResource Card}">
+                <StackPanel>
+                    <TextBlock Text="TARGET  ·  template you're copying data INTO (a copy is written, original untouched)"
+                               Style="{StaticResource SectionHeader}" TextTrimming="CharacterEllipsis" />
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBox Grid.Column="0" Text="{Binding TargetFilePath}" IsReadOnly="True"
+                                 VerticalContentAlignment="Center" />
+                        <Button Grid.Column="1" Content="Browse…" Style="{StaticResource GhostButton}"
+                                Margin="8,0,0,0" Command="{Binding BrowseTargetCommand}" />
+                    </Grid>
+                    <Grid Margin="0,10,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="12" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0">
+                            <Label Content="Sheet" />
+                            <ComboBox ItemsSource="{Binding TargetSheets}"
+                                      SelectedItem="{Binding SelectedTargetSheet}" />
+                        </StackPanel>
+                        <StackPanel Grid.Column="2">
+                            <Label Content="Header row" />
+                            <TextBox Text="{Binding TargetHeaderRow}" Width="70" HorizontalAlignment="Left" />
+                        </StackPanel>
+                    </Grid>
+                </StackPanel>
+            </Border>
+        </Grid>
 
-        <!-- Target panel -->
-        <GroupBox Grid.Row="0" Grid.Column="2" Header="Target (template — never modified)" Padding="10">
-            <StackPanel>
-                <Label Content="File" />
-                <Grid>
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="Auto" />
-                    </Grid.ColumnDefinitions>
-                    <TextBox Grid.Column="0" Text="{Binding TargetFilePath}" IsReadOnly="True" />
-                    <Button Grid.Column="1" Content="Browse…" Margin="6,0,0,0" Padding="10,2"
-                            Command="{Binding BrowseTargetCommand}" />
-                </Grid>
-
-                <Label Content="Sheet" Margin="0,8,0,0" />
-                <ComboBox ItemsSource="{Binding TargetSheets}"
-                          SelectedItem="{Binding SelectedTargetSheet}" />
-
-                <Label Content="Header row" Margin="0,8,0,0" />
-                <TextBox Text="{Binding TargetHeaderRow}" Width="60" HorizontalAlignment="Left" />
-            </StackPanel>
-        </GroupBox>
-
-        <!-- Options -->
-        <GroupBox Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="3" Header="Options"
-                  Margin="0,12,0,0" Padding="10">
+        <!-- ============ Row 1: Options strip ============ -->
+        <Border Grid.Row="1" Style="{StaticResource Card}" Margin="0,14,0,0" Padding="14,12">
             <Grid>
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="200" />
-                    <ColumnDefinition Width="40" />
-                    <ColumnDefinition Width="24" />
-                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />   <!-- confidence label -->
+                    <ColumnDefinition Width="200" />    <!-- slider -->
+                    <ColumnDefinition Width="40" />     <!-- value -->
+                    <ColumnDefinition Width="Auto" />   <!-- write mode -->
                     <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />   <!-- output label -->
+                    <ColumnDefinition Width="240" />    <!-- output box -->
+                    <ColumnDefinition Width="Auto" />   <!-- match -->
+                    <ColumnDefinition Width="Auto" />   <!-- write -->
                 </Grid.ColumnDefinitions>
-                <Label Grid.Column="0" Content="Confidence threshold" VerticalAlignment="Center" />
+
+                <TextBlock Grid.Column="0" Text="Confidence" VerticalAlignment="Center"
+                           Foreground="{StaticResource MutedText}" FontSize="12" />
                 <Slider Grid.Column="1" Minimum="0" Maximum="100" TickFrequency="5"
                         IsSnapToTickEnabled="True" VerticalAlignment="Center" Margin="8,0"
                         Value="{Binding ConfidenceThreshold}" />
-                <TextBlock Grid.Column="2" Text="{Binding ConfidenceThreshold}"
-                           VerticalAlignment="Center" HorizontalAlignment="Right" />
-                <Label Grid.Column="4" Content="Output folder" VerticalAlignment="Center" Margin="16,0,0,0" />
-                <TextBox Grid.Column="5" Text="{Binding OutputDirectory}" Margin="8,0,0,0" />
+                <TextBlock Grid.Column="2" Text="{Binding ConfidenceThreshold}" FontWeight="SemiBold"
+                           VerticalAlignment="Center" HorizontalAlignment="Right" Foreground="{StaticResource InkText}" />
+
+                <!-- Write mode toggle: Overwrite (default) vs Append (PRD §2.5) -->
+                <Border Grid.Column="3" Margin="22,0,0,0" Background="#F2F5FA" CornerRadius="6"
+                        BorderBrush="{StaticResource Hairline}" BorderThickness="1" Padding="4">
+                    <StackPanel Orientation="Horizontal">
+                        <RadioButton Content="Overwrite" GroupName="WriteMode" Padding="10,3" Margin="2,0"
+                                     IsChecked="{Binding AppendMode, Mode=OneWay, Converter={StaticResource BoolToVis}, ConverterParameter=invert}"
+                                     Checked="OverwriteRadio_Checked" VerticalContentAlignment="Center"
+                                     ToolTip="Replace data rows starting below the target header (asks to confirm)" />
+                        <RadioButton Content="Append" GroupName="WriteMode" Padding="10,3" Margin="2,0"
+                                     IsChecked="{Binding AppendMode, Mode=OneWay}"
+                                     Checked="AppendRadio_Checked" VerticalContentAlignment="Center"
+                                     ToolTip="Add rows after the last used row, leaving existing data in place" />
+                    </StackPanel>
+                </Border>
+
+                <TextBlock Grid.Column="5" Text="Output" VerticalAlignment="Center" Margin="22,0,8,0"
+                           Foreground="{StaticResource MutedText}" FontSize="12" />
+                <TextBox Grid.Column="6" Text="{Binding OutputDirectory}" VerticalAlignment="Center"
+                         ToolTip="Folder the mapped copy is written to" />
+
+                <Button Grid.Column="7" Content="① Auto-map" Style="{StaticResource GhostButton}"
+                        MinWidth="120" Margin="16,0,0,0" Command="{Binding MatchCommand}"
+                        ToolTip="Run the matching engine to auto-fill what it's confident about" />
+                <Button Grid.Column="8" Content="② Confirm &amp; execute" Style="{StaticResource PrimaryButton}"
+                        MinWidth="170" Margin="10,0,0,0" Command="{Binding WriteCommand}"
+                        ToolTip="Write every mapped column to the output copy" />
             </Grid>
-        </GroupBox>
+        </Border>
 
-        <!-- Run -->
-        <StackPanel Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="3" Orientation="Horizontal"
-                    HorizontalAlignment="Right" Margin="0,12,0,0">
-            <Button Content="Run" MinWidth="120" Padding="12,6" FontWeight="SemiBold"
-                    Command="{Binding RunCommand}" />
-        </StackPanel>
+        <!-- ============ Row 2: Link hint banner ============ -->
+        <Border Grid.Row="2" Margin="0,12,0,0" CornerRadius="6" Padding="14,10"
+                Background="{StaticResource LinkedBg}" BorderBrush="{StaticResource Accent}" BorderThickness="1">
+            <TextBlock Text="{Binding LinkHintText}" Foreground="{StaticResource InkText}"
+                       FontSize="13" TextWrapping="Wrap" />
+        </Border>
 
-        <!-- Status -->
-        <Border Grid.Row="4" Grid.Column="0" Grid.ColumnSpan="3" Margin="0,12,0,0"
-                Background="#F4F4F4" BorderBrush="#DDDDDD" BorderThickness="1" Padding="10">
-            <TextBlock Text="{Binding Status}" TextWrapping="Wrap" VerticalAlignment="Top" />
+        <!-- ============ Row 3: Two-pane click-to-map ============ -->
+        <Grid Grid.Row="3" Margin="0,12,0,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="340" />
+                <ColumnDefinition Width="14" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+
+            <!-- LEFT: source columns -->
+            <Border Grid.Column="0" Style="{StaticResource Card}" Padding="0">
+                <DockPanel>
+                    <Border DockPanel.Dock="Top" Padding="14,12,14,8">
+                        <StackPanel>
+                            <TextBlock Text="SOURCE COLUMNS" Style="{StaticResource SectionHeader}" Margin="0" />
+                            <TextBlock Text="Click one to pick it up, then click a target on the right."
+                                       Foreground="{StaticResource MutedText}" FontSize="11" TextWrapping="Wrap" Margin="0,2,0,0" />
+                        </StackPanel>
+                    </Border>
+                    <ListBox ItemsSource="{Binding SourceColumns}" BorderThickness="0"
+                             ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                             HorizontalContentAlignment="Stretch" Background="Transparent">
+                        <ListBox.ItemContainerStyle>
+                            <Style TargetType="ListBoxItem">
+                                <Setter Property="Focusable" Value="False" />
+                                <Setter Property="Padding" Value="0" />
+                                <Setter Property="Margin" Value="6,2" />
+                                <Setter Property="Template">
+                                    <Setter.Value>
+                                        <ControlTemplate TargetType="ListBoxItem">
+                                            <ContentPresenter />
+                                        </ControlTemplate>
+                                    </Setter.Value>
+                                </Setter>
+                            </Style>
+                        </ListBox.ItemContainerStyle>
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <Button Command="{Binding DataContext.SelectSourceCommand,
+                                                  RelativeSource={RelativeSource AncestorType=Window}}"
+                                        CommandParameter="{Binding}"
+                                        HorizontalContentAlignment="Stretch" Cursor="Hand">
+                                    <Button.Template>
+                                        <ControlTemplate TargetType="Button">
+                                            <Border x:Name="chip" CornerRadius="6" Padding="12,9"
+                                                    BorderThickness="1" BorderBrush="{StaticResource Hairline}"
+                                                    Background="White">
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*" />
+                                                        <ColumnDefinition Width="Auto" />
+                                                    </Grid.ColumnDefinitions>
+                                                    <TextBlock x:Name="lbl" Grid.Column="0" Text="{Binding Label}"
+                                                               Foreground="{StaticResource InkText}"
+                                                               TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                                                    <TextBlock x:Name="linkedTag" Grid.Column="1" Text="✓ linked" FontSize="11"
+                                                               Foreground="{StaticResource Accent}" FontWeight="SemiBold"
+                                                               VerticalAlignment="Center"
+                                                               Visibility="{Binding IsLinked, Converter={StaticResource BoolToVis}}" />
+                                                </Grid>
+                                            </Border>
+                                            <ControlTemplate.Triggers>
+                                                <Trigger Property="IsMouseOver" Value="True">
+                                                    <Setter TargetName="chip" Property="BorderBrush" Value="{StaticResource Accent}" />
+                                                    <Setter TargetName="chip" Property="Background" Value="#F5F9FF" />
+                                                </Trigger>
+                                                <!-- the source the user has picked up, awaiting a target click -->
+                                                <DataTrigger Binding="{Binding IsPicked}" Value="True">
+                                                    <Setter TargetName="chip" Property="Background" Value="{StaticResource SelectBg}" />
+                                                    <Setter TargetName="chip" Property="BorderBrush" Value="{StaticResource AccentDark}" />
+                                                    <Setter TargetName="lbl" Property="Foreground" Value="White" />
+                                                    <Setter TargetName="lbl" Property="FontWeight" Value="SemiBold" />
+                                                    <Setter TargetName="linkedTag" Property="Foreground" Value="White" />
+                                                </DataTrigger>
+                                            </ControlTemplate.Triggers>
+                                        </ControlTemplate>
+                                    </Button.Template>
+                                </Button>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </DockPanel>
+            </Border>
+
+            <!-- RIGHT: target columns / mapping rows -->
+            <Border Grid.Column="2" Style="{StaticResource Card}" Padding="0">
+                <DockPanel>
+                    <Border DockPanel.Dock="Top" Padding="14,12,14,8">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0">
+                                <TextBlock Text="TARGET COLUMNS  ·  click a row to link the picked source (or clear it)"
+                                           Style="{StaticResource SectionHeader}" Margin="0" />
+                            </StackPanel>
+                            <TextBlock Grid.Column="1" VerticalAlignment="Center">
+                                <Run Text="{Binding LinkedCount, Mode=OneWay}" FontWeight="Bold" Foreground="{StaticResource Accent}" />
+                                <Run Text="linked" Foreground="{StaticResource MutedText}" FontSize="12" />
+                            </TextBlock>
+                        </Grid>
+                    </Border>
+
+                    <!-- column header row -->
+                    <Border DockPanel.Dock="Top" Background="#F7F9FC" BorderBrush="{StaticResource Hairline}"
+                            BorderThickness="0,1,0,1" Padding="14,6">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="36" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="24" />
+                                <ColumnDefinition Width="1.2*" />
+                                <ColumnDefinition Width="64" />
+                                <ColumnDefinition Width="78" />
+                                <ColumnDefinition Width="150" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Text="Hide" FontSize="11" Foreground="{StaticResource MutedText}" />
+                            <TextBlock Grid.Column="1" Text="Target column" FontSize="11" Foreground="{StaticResource MutedText}" />
+                            <TextBlock Grid.Column="3" Text="Linked source" FontSize="11" Foreground="{StaticResource MutedText}" />
+                            <TextBlock Grid.Column="4" Text="Score" FontSize="11" Foreground="{StaticResource MutedText}" />
+                            <TextBlock Grid.Column="5" Text="Tier" FontSize="11" Foreground="{StaticResource MutedText}" />
+                            <TextBlock Grid.Column="6" Text="Status" FontSize="11" Foreground="{StaticResource MutedText}" />
+                        </Grid>
+                    </Border>
+
+                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                        <ItemsControl ItemsSource="{Binding RowsView}">
+                            <ItemsControl.GroupStyle>
+                                <GroupStyle>
+                                    <GroupStyle.HeaderTemplate>
+                                        <DataTemplate>
+                                            <Border Background="#F0F3F9" Padding="14,5" Margin="0,4,0,0"
+                                                    BorderBrush="{StaticResource Hairline}" BorderThickness="0,0,0,1">
+                                                <StackPanel Orientation="Horizontal">
+                                                    <TextBlock Text="{Binding Name}" FontSize="11" FontWeight="SemiBold"
+                                                               Foreground="{StaticResource MutedText}" />
+                                                    <TextBlock Margin="8,0,0,0" FontSize="11" Foreground="{StaticResource MutedText}">
+                                                        <Run Text="(" /><Run Text="{Binding ItemCount, Mode=OneWay}" /><Run Text=")" />
+                                                    </TextBlock>
+                                                </StackPanel>
+                                            </Border>
+                                        </DataTemplate>
+                                    </GroupStyle.HeaderTemplate>
+                                </GroupStyle>
+                            </ItemsControl.GroupStyle>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Button Command="{Binding DataContext.LinkTargetCommand,
+                                                      RelativeSource={RelativeSource AncestorType=Window}}"
+                                            CommandParameter="{Binding}" Cursor="Hand"
+                                            HorizontalContentAlignment="Stretch">
+                                        <Button.Template>
+                                            <ControlTemplate TargetType="Button">
+                                                <Border x:Name="rowb" Padding="14,8" Margin="0,1"
+                                                        BorderThickness="0,0,0,1" BorderBrush="#EEF1F6"
+                                                        Background="Transparent">
+                                                    <Grid>
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="36" />
+                                                            <ColumnDefinition Width="*" />
+                                                            <ColumnDefinition Width="24" />
+                                                            <ColumnDefinition Width="1.2*" />
+                                                            <ColumnDefinition Width="64" />
+                                                            <ColumnDefinition Width="78" />
+                                                            <ColumnDefinition Width="150" />
+                                                        </Grid.ColumnDefinitions>
+
+                                                        <!-- hide checkbox (doesn't trigger link click) -->
+                                                        <CheckBox Grid.Column="0" IsChecked="{Binding IsHidden}"
+                                                                  VerticalAlignment="Center"
+                                                                  ToolTip="Hide this column from the write"
+                                                                  Click="HideCheckBox_Click" />
+
+                                                        <TextBlock Grid.Column="1" Text="{Binding TargetLabel}"
+                                                                   Foreground="{StaticResource InkText}" FontWeight="SemiBold"
+                                                                   TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+
+                                                        <TextBlock Grid.Column="2" Text="→" Foreground="{StaticResource MutedText}"
+                                                                   VerticalAlignment="Center" HorizontalAlignment="Center" />
+
+                                                        <StackPanel Grid.Column="3" Orientation="Horizontal" VerticalAlignment="Center">
+                                                            <TextBlock Text="{Binding LinkedSourceLabel}"
+                                                                       Foreground="{StaticResource InkText}"
+                                                                       TextTrimming="CharacterEllipsis" />
+                                                            <Border Margin="6,0,0,0" Background="{StaticResource WarnBg}" CornerRadius="3"
+                                                                    Padding="5,1" VerticalAlignment="Center"
+                                                                    Visibility="{Binding LinkedSourceIsEmpty, Converter={StaticResource BoolToVis}}">
+                                                                <TextBlock Text="empty!" FontSize="10" Foreground="{StaticResource WarnText}" />
+                                                            </Border>
+                                                        </StackPanel>
+
+                                                        <TextBlock Grid.Column="4" Text="{Binding Score}"
+                                                                   Foreground="{StaticResource MutedText}" VerticalAlignment="Center" />
+
+                                                        <Border Grid.Column="5" CornerRadius="4" Padding="6,1" Height="20"
+                                                                HorizontalAlignment="Left" VerticalAlignment="Center"
+                                                                Background="{Binding Kind, Converter={StaticResource KindToBrush}}">
+                                                            <TextBlock Text="{Binding KindText}" Foreground="White" FontSize="10" FontWeight="SemiBold" />
+                                                        </Border>
+
+                                                        <TextBlock Grid.Column="6" Text="{Binding StatusText}" VerticalAlignment="Center"
+                                                                   FontSize="11" Foreground="{StaticResource MutedText}"
+                                                                   TextTrimming="CharacterEllipsis" />
+                                                    </Grid>
+                                                </Border>
+                                                <ControlTemplate.Triggers>
+                                                    <Trigger Property="IsMouseOver" Value="True">
+                                                        <Setter TargetName="rowb" Property="Background" Value="#F5F9FF" />
+                                                    </Trigger>
+                                                    <DataTrigger Binding="{Binding IsLinked}" Value="True">
+                                                        <Setter TargetName="rowb" Property="Background" Value="{StaticResource LinkedBg}" />
+                                                    </DataTrigger>
+                                                    <DataTrigger Binding="{Binding IsHidden}" Value="True">
+                                                        <Setter TargetName="rowb" Property="Opacity" Value="0.45" />
+                                                    </DataTrigger>
+                                                </ControlTemplate.Triggers>
+                                            </ControlTemplate>
+                                        </Button.Template>
+                                    </Button>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
+                </DockPanel>
+            </Border>
+        </Grid>
+
+        <!-- ============ Row 4: Status footer ============ -->
+        <Border Grid.Row="4" Margin="0,12,0,0" Style="{StaticResource Card}" Padding="14,10">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <Border Grid.Column="0" Width="10" Height="10" CornerRadius="5" VerticalAlignment="Top" Margin="0,4,10,0"
+                        Background="{StaticResource Accent}" />
+                <TextBlock Grid.Column="1" Text="{Binding Status}" TextWrapping="Wrap"
+                           Foreground="{StaticResource InkText}" FontSize="13" />
+            </Grid>
         </Border>
     </Grid>
 </Window>

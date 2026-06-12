@@ -27,9 +27,9 @@ end, never a horizontal layer in isolation.
 |---|--------|--------|------------------|----------------------|
 | 1 | **Read → Write skeleton** | ✅ Done | Open source + target `.xlsx`, copy verbatim into a copy of target, save to output dir | §2.1, §2.4, §2.5 (copy/preserve), §9 |
 | 2 | **Header + match engine (console)** | ✅ Done | Headers, **tiered** match (qualified/exact/alias/fuzzy), strict groups, org-code aliases, token-gated rules, scored mapping | §2.2, §2.3 (match/score/threshold), §6 |
-| 3 | **WPF shell wired to engine** | ⬜ Next | Click files in a window, run a real map, see scored mapping + tier, output written | §3, §9 (UI/core split), §10 |
-| 4 | **Interactive mapping grid + overrides** | ⬜ | Adjust mappings, set thresholds, hide columns, choose write mode | §2.3 (override/ambiguity/hide), §2.5 (modes) |
-| 5 | **Profiles, settings, rules editor, reporting, limits** | ⬜ | Save/load profiles, edit alias + qualified rules in UI, persist settings, summary report, 100K guard | §2.3 (profiles/rules), §5, §6 (limit), §7 |
+| 3 | **WPF shell wired to engine** | ✅ Done | Click files in a window, run a real map, see scored mapping + tier, output written | §3, §9 (UI/core split), §10 |
+| 4 | **Interactive mapping grid + overrides** | ✅ Done | Click-to-map by mouse, reject auto-matches, set thresholds, hide columns, choose write mode | §2.3 (override/ambiguity/hide), §2.5 (modes) |
+| 5 | **Profiles, settings, rules editor, reporting, limits** | ⬜ Next | Save/load profiles, edit alias + qualified rules in UI, persist settings, summary report, 100K guard | §2.3 (profiles/rules), §5, §6 (limit), §7 |
 
 > **Note on scope drift (good kind):** Tracer 2 absorbed a full **rules engine** that
 > wasn't in the original plan — match tiers, alias/synonym groups (strict vs loose),
@@ -145,6 +145,17 @@ want to see land.
 
 ## Tracer 3 — WPF Shell Wired to the Engine
 
+> **Status: ✅ Done.** `CelMap.App` (WPF + CommunityToolkit.Mvvm) with a `MainViewModel`
+> that drives `CelMap.Core` exactly as the CLI does — file/sheet pickers (sheets
+> auto-populate on file pick), header-row inputs, an async **Run** off the UI thread,
+> and a scored results view. Alias + qualified rule files load at startup. Locked-file
+> `IOException` (file open in Excel — the Tracer 1/2 gap) now surfaces as a friendly
+> "close it in Excel and retry" message instead of crashing (PRD §10). The CLI still
+> works — two hosts, one engine. **Note:** `CelMap.App` now targets **net10.0-windows**
+> (the SDK gained the WPF target after Tracer 1's net9.0 stopgap). Tracer 4 superseded the
+> one-shot Run with an interactive workflow, so the read-only results grid described below
+> was replaced rather than kept.
+
 **Goal:** First pixels. A WPF window that lets the user pick files and sheets,
 press Run, **see the scored mapping it produced**, and get the exact same output
 Tracer 2 produced from the console — proving the UI/core split (§9) over a real
@@ -193,6 +204,41 @@ Excel → friendly error, no crash.
 ---
 
 ## Tracer 4 — Interactive Mapping Grid, Overrides & Write Modes
+
+> **Status: ✅ Done — and the interaction model was redesigned with the user during the build.**
+> The one-shot Run became a **single-screen staged workflow** (explicitly *not* a wizard):
+> **① Auto-map** → confirm/reject auto-matches → **map the rest by mouse** → **② Confirm & execute**.
+>
+> **What shipped (all in `CelMap.App`, engine logic stays in `CelMap.Core`):**
+> - **Click-to-map by mouse** — the requested interaction is *click a source column (left pane)
+>   to "pick it up", then click a target row (right pane) to link them*. No dropdowns, no
+>   drag-and-drop. Click the same source again to put it back; click an auto-matched row to
+>   **reject** it (it drops back to "Needs mapping").
+> - **Mapped rows move out of the way** — the right pane is a grouped, live-sorted
+>   `ICollectionView` (`RowsView`): **Needs mapping** floats to the top so the user focuses
+>   on what's left, then **Auto-matched** (confirm/reject), **Manually mapped**, and **Hidden**,
+>   each with a count header. Re-sorts after every link/hide edit.
+> - **Confidence threshold slider** re-runs auto-apply live and **preserves manual overrides**
+>   (the slider only moves fuzzy matches; tiered certainties at score 100 are unaffected).
+> - **Hide/show** target columns — hidden rows are excluded from the write.
+> - **Write-mode toggle** (PRD §2.5): **Overwrite** (default, with a confirmation dialog) writes
+>   from below the target header; **Append** writes after the last used row. Honoured in
+>   `TargetWriter` via a new `WriteMode` enum on `WriteRequest`.
+> - Visual cues: match-tier chips (Qualified/Exact/Alias/Fuzzy, colour-coded), inline
+>   **empty-source-column** warning, and strict-unmatched / qualified-needs-review flagged
+>   distinctly from a plain low-score miss.
+>
+> **Core change:** `WriteMode` enum (Overwrite/Append) on `WriteRequest`; `TargetWriter`
+> starts Append after the last used row. **83 tests passing** (added Append + Overwrite
+> writer tests). The CLI is unchanged and still drives the same engine.
+>
+> **Validated end to end on real UAT data:** mapped `Dyson2023.DataCollection_Clean.xlsx`
+> (`GLMembersLastReview`, header row 1, 60 rows) → `Target.xlsm` (`DataCollection`, 49 cols).
+> 8 columns auto-matched at 100 (EmployeeRef←Staff ID, Surname, FirstName, Gender, DOB, State,
+> Occupation, Hours) and 60 rows written verbatim into the correct target columns; the insurance
+> split-fields (GSC/GL/TPD Category/FUL/Loading/Term) were correctly left for manual mapping.
+> **Note (carried from §10):** the target must be closed in Excel — a locked file surfaces as a
+> friendly message, no crash.
 
 **Goal:** Turn the one-shot Run into a real mapping workflow. The user now *sees*
 the scored mappings before writing and steers them.
