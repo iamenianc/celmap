@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("CelMap.App")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+27623052269384d464226cb032151bf44d394c0c")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+807ce73438e9c1af36e65210fe86a6a8a054bfd5")]
 [assembly: System.Reflection.AssemblyProductAttribute("CelMap.App")]
 [assembly: System.Reflection.AssemblyTitleAttribute("CelMap.App")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

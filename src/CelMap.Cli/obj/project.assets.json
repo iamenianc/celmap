@@ -89,163 +89,6 @@
           "lib/netcoreapp2.1/FuzzySharp.dll": {}
         }
       },
-      "Microsoft.NET.ILLink.Tasks/10.0.9": {
-        "type": "package",
-        "build": {
-          "build/Microsoft.NET.ILLink.Tasks.props": {}
-        }
-      },
-      "RBush.Signed/4.0.0": {
-        "type": "package",
-        "compile": {
-          "lib/net8.0/RBush.dll": {
-            "related": ".xml"
-          }
-        },
-        "runtime": {
-          "lib/net8.0/RBush.dll": {
-            "related": ".xml"
-          }
-        }
-      },
-      "SixLabors.Fonts/1.0.0": {
-        "type": "package",
-        "compile": {
-          "lib/netcoreapp3.1/SixLabors.Fonts.dll": {
-            "related": ".xml"
-          }
-        },
-        "runtime": {
-          "lib/netcoreapp3.1/SixLabors.Fonts.dll": {
-            "related": ".xml"
-          }
-        }
-      },
-      "System.IO.Packaging/8.0.1": {
-        "type": "package",
-        "compile": {
-          "lib/net8.0/System.IO.Packaging.dll": {
-            "related": ".xml"
-          }
-        },
-        "runtime": {
-          "lib/net8.0/System.IO.Packaging.dll": {
-            "related": ".xml"
-          }
-        },
-        "build": {
-          "buildTransitive/net6.0/_._": {}
-        }
-      },
-      "CelMap.Core/1.0.0": {
-        "type": "project",
-        "framework": ".NETCoreApp,Version=v10.0",
-        "dependencies": {
-          "ClosedXML": "0.105.0",
-          "FuzzySharp": "2.0.2"
-        },
-        "compile": {
-          "bin/placeholder/CelMap.Core.dll": {}
-        },
-        "runtime": {
-          "bin/placeholder/CelMap.Core.dll": {}
-        }
-      }
-    },
-    "net10.0/win-x64": {
-      "ClosedXML/0.105.0": {
-        "type": "package",
-        "dependencies": {
-          "ClosedXML.Parser": "2.0.0",
-          "DocumentFormat.OpenXml": "[3.1.1, 4.0.0)",
-          "ExcelNumberFormat": "1.1.0",
-          "RBush.Signed": "4.0.0",
-          "SixLabors.Fonts": "1.0.0"
-        },
-        "compile": {
-          "lib/netstandard2.1/ClosedXML.dll": {
-            "related": ".pdb;.xml"
-          }
-        },
-        "runtime": {
-          "lib/netstandard2.1/ClosedXML.dll": {
-            "related": ".pdb;.xml"
-          }
-        }
-      },
-      "ClosedXML.Parser/2.0.0": {
-        "type": "package",
-        "compile": {
-          "lib/netstandard2.1/ClosedXML.Parser.dll": {
-            "related": ".xml"
-          }
-        },
-        "runtime": {
-          "lib/netstandard2.1/ClosedXML.Parser.dll": {
-            "related": ".xml"
-          }
-        }
-      },
-      "DocumentFormat.OpenXml/3.1.1": {
-        "type": "package",
-        "dependencies": {
-          "DocumentFormat.OpenXml.Framework": "3.1.1"
-        },
-        "compile": {
-          "lib/net8.0/DocumentFormat.OpenXml.dll": {
-            "related": ".xml"
-          }
-        },
-        "runtime": {
-          "lib/net8.0/DocumentFormat.OpenXml.dll": {
-            "related": ".xml"
-          }
-        }
-      },
-      "DocumentFormat.OpenXml.Framework/3.1.1": {
-        "type": "package",
-        "dependencies": {
-          "System.IO.Packaging": "8.0.1"
-        },
-        "compile": {
-          "lib/net8.0/DocumentFormat.OpenXml.Framework.dll": {
-            "related": ".xml"
-          }
-        },
-        "runtime": {
-          "lib/net8.0/DocumentFormat.OpenXml.Framework.dll": {
-            "related": ".xml"
-          }
-        }
-      },
-      "ExcelNumberFormat/1.1.0": {
-        "type": "package",
-        "compile": {
-          "lib/netstandard2.0/ExcelNumberFormat.dll": {
-            "related": ".xml"
-          }
-        },
-        "runtime": {
-          "lib/netstandard2.0/ExcelNumberFormat.dll": {
-            "related": ".xml"
-          }
-        }
-      },
-      "FuzzySharp/2.0.2": {
-        "type": "package",
-        "compile": {
-          "lib/netcoreapp2.1/FuzzySharp.dll": {}
-        },
-        "runtime": {
-          "lib/netcoreapp2.1/FuzzySharp.dll": {}
-        }
-      },
-      "Microsoft.NET.ILLink.Tasks/10.0.9": {
-        "type": "package",
-        "build": {
-          "build/Microsoft.NET.ILLink.Tasks.props": {}
-        }
-      },
       "RBush.Signed/4.0.0": {
         "type": "package",
         "compile": {
@@ -425,56 +268,6 @@
         "lib/netstandard2.1/FuzzySharp.dll"
       ]
     },
-    "Microsoft.NET.ILLink.Tasks/10.0.9": {
-      "sha512": "4Iw41e2h7I4t70SJcX2GCmbyKJIlA273Cfm9RJMM050/3VBejGAG1KcthP5Z2L6SQcbfbf6BhNWO26+ZG+GzMg==",
-      "type": "package",
-      "path": "microsoft.net.illink.tasks/10.0.9",
-      "hasTools": true,
-      "files": [
-        ".nupkg.metadata",
-        ".signature.p7s",
-        "Icon.png",
-        "Sdk/Sdk.props",
-        "THIRD-PARTY-NOTICES.TXT",
-        "analyzers/dotnet/cs/ILLink.CodeFixProvider.dll",
-        "analyzers/dotnet/cs/ILLink.RoslynAnalyzer.dll",
-        "build/Microsoft.NET.ILLink.Analyzers.props",
-        "build/Microsoft.NET.ILLink.Tasks.props",
-        "build/Microsoft.NET.ILLink.targets",
-        "microsoft.net.illink.tasks.10.0.9.nupkg.sha512",
-        "microsoft.net.illink.tasks.nuspec",
-        "tools/net/ILLink.Tasks.deps.json",
-        "tools/net/ILLink.Tasks.dll",
-        "tools/net/Mono.Cecil.Mdb.dll",
-        "tools/net/Mono.Cecil.Pdb.dll",
-        "tools/net/Mono.Cecil.Rocks.dll",
-        "tools/net/Mono.Cecil.dll",
-        "tools/net/Sdk/Sdk.props",
-        "tools/net/build/Microsoft.NET.ILLink.Analyzers.props",
-        "tools/net/build/Microsoft.NET.ILLink.Tasks.props",
-        "tools/net/build/Microsoft.NET.ILLink.targets",
-        "tools/net/illink.deps.json",
-        "tools/net/illink.dll",
-        "tools/net/illink.runtimeconfig.json",
-        "tools/netframework/ILLink.Tasks.dll",
-        "tools/netframework/ILLink.Tasks.dll.config",
-        "tools/netframework/Mono.Cecil.Mdb.dll",
-        "tools/netframework/Mono.Cecil.Pdb.dll",
-        "tools/netframework/Mono.Cecil.Rocks.dll",
-        "tools/netframework/Mono.Cecil.dll",
-        "tools/netframework/Sdk/Sdk.props",
-        "tools/netframework/System.Buffers.dll",
-        "tools/netframework/System.Collections.Immutable.dll",
-        "tools/netframework/System.Memory.dll",
-        "tools/netframework/System.Numerics.Vectors.dll",
-        "tools/netframework/System.Reflection.Metadata.dll",
-        "tools/netframework/System.Runtime.CompilerServices.Unsafe.dll",
-        "tools/netframework/build/Microsoft.NET.ILLink.Analyzers.props",
-        "tools/netframework/build/Microsoft.NET.ILLink.Tasks.props",
-        "tools/netframework/build/Microsoft.NET.ILLink.targets",
-        "useSharedDesignerContext.txt"
-      ]
-    },
     "RBush.Signed/4.0.0": {
       "sha512": "aP5KQxL5RnFNGW1f0euYVBfCatkLw5iEzMRJcXKq8LWWP4Cp3+qoSq1tDDL2vvJ2rM0ychmVMa2VaEKLS6uX4w==",
       "type": "package",
@@ -548,8 +341,7 @@
   },
   "projectFileDependencyGroups": {
     "net10.0": [
-      "CelMap.Core >= 1.0.0",
-      "Microsoft.NET.ILLink.Tasks >= 10.0.9"
+      "CelMap.Core >= 1.0.0"
     ]
   },
   "packageFolders": {
@@ -602,14 +394,6 @@
       "net10.0": {
         "framework": "net10.0",
         "targetAlias": "net10.0",
-        "dependencies": {
-          "Microsoft.NET.ILLink.Tasks": {
-            "suppressParent": "All",
-            "target": "Package",
-            "version": "[10.0.9, )",
-            "autoReferenced": true
-          }
-        },
         "imports": [
           "net461",
           "net462",
@@ -621,20 +405,6 @@
         ],
         "assetTargetFallback": true,
         "warn": true,
-        "downloadDependencies": [
-          {
-            "name": "Microsoft.AspNetCore.App.Runtime.win-x64",
-            "version": "[10.0.9, 10.0.9]"
-          },
-          {
-            "name": "Microsoft.NETCore.App.Runtime.win-x64",
-            "version": "[10.0.9, 10.0.9]"
-          },
-          {
-            "name": "Microsoft.WindowsDesktop.App.Runtime.win-x64",
-            "version": "[10.0.9, 10.0.9]"
-          }
-        ],
         "frameworkReferences": {
           "Microsoft.NETCore.App": {
             "privateAssets": "all"
@@ -915,11 +685,6 @@
           "System.Xml.XPath": "(,4.3.32767]",
           "System.Xml.XPath.XDocument": "(,5.0.32767]"
         }
-      }
-    },
-    "runtimes": {
-      "win-x64": {
-        "#import": []
       }
     }
   }
