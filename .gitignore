@@ -1,0 +1,21 @@
+# .NET build output
+bin/
+obj/
+[Dd]ebug/
+[Rr]elease/
+publish/
+*.user
+
+# Generated, regenerable demo fixtures (recreate with:
+#   dotnet run --project test-fixtures/CreateFixtures/CreateFixtures -- fixtures)
+test-fixtures/*.xlsx
+
+# CelMap run output (default output dir is %USERPROFILE%/Documents/CelMap, but
+# guard against any local copies landing in the tree)
+*(mapped).xlsx
+
+# IDE / OS
+.vs/
+.idea/
+*.swp
+Thumbs.db

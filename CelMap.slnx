@@ -1,0 +1,10 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/CelMap.App/CelMap.App.csproj" />
+    <Project Path="src/CelMap.Cli/CelMap.Cli.csproj" />
+    <Project Path="src/CelMap.Core/CelMap.Core.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/CelMap.Core.Tests/CelMap.Core.Tests.csproj" />
+  </Folder>
+</Solution>

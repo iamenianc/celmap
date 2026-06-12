@@ -23,17 +23,34 @@ end, never a horizontal layer in isolation.
 
 ## Tracer overview
 
-| # | Tracer | End-to-end proof | Primary PRD coverage |
-|---|--------|------------------|----------------------|
-| 1 | **Read → Write skeleton** | Open source + target `.xlsx`, copy verbatim into a copy of target, save to output dir | §2.1, §2.4, §2.5 (copy/preserve), §9 |
-| 2 | **Header + fuzzy match (console)** | Identify headers, fuzzy-match columns, print scored mapping | §2.2, §2.3 (match/score/threshold), §6 |
-| 3 | **WPF shell wired to engine** | Click files in a window, run a real map, see output written | §3, §9 (UI/core split), §10 |
-| 4 | **Interactive mapping grid + overrides** | Adjust mappings, set thresholds, hide columns, choose write mode | §2.3 (override/ambiguity/hide), §2.5 (modes) |
-| 5 | **Profiles, settings, reporting, limits** | Save/load profiles, persist settings, summary report, 100K guard | §2.3 (profiles), §5, §6 (limit), §7 |
+| # | Tracer | Status | End-to-end proof | Primary PRD coverage |
+|---|--------|--------|------------------|----------------------|
+| 1 | **Read → Write skeleton** | ✅ Done | Open source + target `.xlsx`, copy verbatim into a copy of target, save to output dir | §2.1, §2.4, §2.5 (copy/preserve), §9 |
+| 2 | **Header + match engine (console)** | ✅ Done | Headers, **tiered** match (qualified/exact/alias/fuzzy), strict groups, org-code aliases, token-gated rules, scored mapping | §2.2, §2.3 (match/score/threshold), §6 |
+| 3 | **WPF shell wired to engine** | ⬜ Next | Click files in a window, run a real map, see scored mapping + tier, output written | §3, §9 (UI/core split), §10 |
+| 4 | **Interactive mapping grid + overrides** | ⬜ | Adjust mappings, set thresholds, hide columns, choose write mode | §2.3 (override/ambiguity/hide), §2.5 (modes) |
+| 5 | **Profiles, settings, rules editor, reporting, limits** | ⬜ | Save/load profiles, edit alias + qualified rules in UI, persist settings, summary report, 100K guard | §2.3 (profiles/rules), §5, §6 (limit), §7 |
+
+> **Note on scope drift (good kind):** Tracer 2 absorbed a full **rules engine** that
+> wasn't in the original plan — match tiers, alias/synonym groups (strict vs loose),
+> and qualified token-gated rules with synonym-aware qualifiers — driven by real UAT
+> data (`generictable.xlsx`) and the insurance domain. This pulls a meaningful chunk of
+> §2.3 forward and adds a **rules editor** obligation to Tracer 5. See the Tracer 2
+> status note for the full inventory.
 
 ---
 
 ## Tracer 1 — Read/Write Skeleton (the structural spike)
+
+> **Status: ✅ Done.** Solution scaffolded (`CelMap.Core`/`CelMap.Cli`/`CelMap.App`/
+> `CelMap.Core.Tests`). `WorkbookReader` reads `.xlsx`/`.xlsm` into a typed cell grid;
+> `TargetWriter` copies the target to the output dir and writes verbatim, leaving the
+> original untouched. Verified end to end on the real Dyson UAT file (2 sheets, 22
+> columns with multi-line headers, 60 data rows below header row 6) and on fixtures
+> with bold-header + column-width preservation confirmed. 8 unit tests passing.
+> **Note:** WPF App targets `net9.0` (template has no `net10.0-windows` yet); Core/Cli/
+> Tests target `net10.0` (only SDK installed). **Known gap:** ClosedXML throws a raw
+> `IOException` if the file is open in Excel — friendly message deferred to a later tracer.
 
 **Goal:** Prove the riskiest end-to-end path: read a source `.xlsx`, open a
 target `.xlsx`, write source values verbatim into a *copy* of the target while
@@ -42,10 +59,10 @@ No matching, no UI — just bytes flowing all the way through.
 
 **Build**
 - Solution layout (locks in §9 architecture from day one):
-  - `CelMap.Core` — class library, targets **.NET 8/9**. No UI references.
-  - `CelMap.Cli` — thin console host that drives `CelMap.Core` for tracers 1–2.
-  - `CelMap.App` — WPF EXE (empty until Tracer 3).
-  - `CelMap.Core.Tests` — test project.
+  - `CelMap.Core` — class library, **net10.0**. No UI references.
+  - `CelMap.Cli` — thin console host (net10.0) that drives `CelMap.Core` for tracers 1–2.
+  - `CelMap.App` — WPF EXE, **net9.0** (template lacks net10.0-windows; empty until Tracer 3).
+  - `CelMap.Core.Tests` — test project (net10.0).
 - Add ClosedXML to `CelMap.Core`.
 - `IWorkbookReader` / `WorkbookReader`: open `.xlsx`/`.xlsm`, list sheets, read a
   sheet into an in-memory cell grid preserving cell **value + type** (text vs.
@@ -66,6 +83,39 @@ preserving formatting; verbatim type fidelity holds; copy-not-original works.
 ---
 
 ## Tracer 2 — Header Identification + Fuzzy Matching (console)
+
+> **Status: ✅ Done — and the matching engine grew well beyond the original plan.**
+> FuzzySharp added. `HeaderExtractor` pulls labels from a chosen header row;
+> `ColumnMatcher` scores every source against every target 0–100, auto-applies above a
+> configurable threshold, flags below-threshold as **NeedsReview**, returns **Ambiguous**
+> candidates within a tie margin, warns on empty source columns, and matches by name not
+> position. The writer consumes a `MappingResult` — full **read → match → write verbatim**
+> path runs end to end. CLI prints the `TargetCol | SourceCol | Score | Status` table.
+>
+> **Beyond the original Tracer 2 scope (added live during UAT, all in `CelMap.Core`):**
+> - **Match tiers** `MatchKind`: **Qualified > Exact > Alias > Fuzzy**. A certainty never
+>   loses to a coincidental fuzzy 100; ambiguity is scoped *within* a tier.
+> - **Alias rules** (`AliasRules`, `synonyms.json`) — bidirectional synonym groups that
+>   short-circuit to score 100. Seeded (29 groups) from `UAT Files/generictable.xlsx`,
+>   the org's curated label↔code table. The matcher translates messy client labels into
+>   internal **org codes** (e.g. `Date Joined Scheme → DJS`).
+> - **Strict vs loose groups** — strict groups (IDs/keys: `MemberID`, `GroupID`,
+>   `EmployeeRef`, `DJS`, `ReviewDate`, `TFN`, …) refuse fuzzy fallback: no exact/alias
+>   hit ⇒ left **Unmatched** (manual-only), never guessed. Loose groups fall through to
+>   fuzzy. Default = loose.
+> - **Qualified (token-gated) rules** (`QualifiedRules`, `qualified_rules.json`) for the
+>   ambiguous GL/GSC/TPD split fields (`CategoryNo`/`FUL`/`Loading`/`Term`/`Threshold`).
+>   A source qualifies only if its header carries the concept **and** a benefit
+>   qualifier; bare concept ⇒ forced manual review. Qualifier slots are **synonym-aware**
+>   (insurance domain: GL≡Group Life≡Death; GSC≡GIP≡Income Protection≡Salary Continuance;
+>   TPD≡Total & Permanent Disability) — 15 rules.
+>
+> **81 tests passing.** Both rule files are `Content` copied to host output and ship beside
+> the CLI. Conversion of `generictable.xlsx` and collision-free merging are guarded by
+> tests. **Known gap (carried):** ClosedXML throws a raw `IOException` when a file is open
+> in Excel — friendly handling deferred to Tracer 3. **Open question:** qualifier tokens
+> match as substrings (so `GLFUL` written solid still hits); revisit word-boundary
+> matching if a real collision appears.
 
 **Goal:** Given header-row numbers, build the actual source→target column
 mapping with confidence scores. Still console — the matching engine is what we
@@ -96,24 +146,49 @@ want to see land.
 ## Tracer 3 — WPF Shell Wired to the Engine
 
 **Goal:** First pixels. A WPF window that lets the user pick files and sheets,
-press Run, and get the exact same output Tracer 2 produced from the console —
-proving the UI/core split (§9) over a real engine, not a mock.
+press Run, **see the scored mapping it produced**, and get the exact same output
+Tracer 2 produced from the console — proving the UI/core split (§9) over a real
+engine, not a mock. Crash-resistant (§10) from the first window.
 
 **Build**
 - `CelMap.App` (WPF + CommunityToolkit.Mvvm).
 - Main view + `MainViewModel`:
   - Source file / target file pickers (§2.1).
-  - Sheet dropdowns populated from `WorkbookReader` (§2.1).
-  - Header-row inputs for source and target (§2.2).
-  - **Run** command → calls `CelMap.Core` exactly as the CLI did.
-  - Status text showing output path on success.
+  - Sheet dropdowns **auto-populated on file pick** via `WorkbookReader`
+    (`GetSheetNames` fires when a file is chosen, not behind a separate action) (§2.1).
+  - Header-row inputs for source and target, **with a preview of the selected
+    header row's values** (or first ~5 rows) so the user can confirm they picked
+    the real header — the Dyson UAT file's header was row 6, not row 1, so a blind
+    number box is a foot-gun (§2.2).
+  - **Run** command → calls `CelMap.Core` exactly as the CLI did. **Async / off the
+    UI thread** so a large (up to 100K-row) write never freezes or looks hung (§10).
+  - **Read-only scored results display** (DataGrid or list) showing
+    `Target | Source | Score | Match (tier) | Status` for the run — the
+    `MappingResult` already exists from Tracer 2, so surface it instead of writing
+    blind. Show the **match tier** (`Qualified`/`Exact`/`Alias`/`Fuzzy`) so the user
+    can see *why* something matched, and visually distinguish the rules-engine
+    outcomes that now exist: **strict-unmatched** (manual-only, fuzzy suppressed) and
+    **qualified needs-review** (ambiguous concept, e.g. bare `CategoryNo`) read very
+    differently from a plain low-score miss. Tracer 4 makes this grid *editable*;
+    here it is view-only.
+  - Load the default **alias + qualified rule** files (`synonyms.json`,
+    `qualified_rules.json`) at startup exactly as the CLI does, so the org-code
+    translation and benefit-type disambiguation work in the app from first launch.
+  - Status text showing output path on success; a clean "nothing matched / nothing
+    to write" status when the run produces zero auto-mappings (no silence, no crash).
+- **Error handling from day one (§10 — no crashes on valid input):** wrap engine
+  calls so a locked-file `IOException` (file open in Excel — the known Tracer 1 gap)
+  and other expected failures surface as a friendly message ("close the file in
+  Excel and retry"), never an unhandled exception that kills the window.
 - Optional preload of a default template file (stubbed; fully wired in Tracer 5)
   (§2.1, §5).
 - Keep all logic in `CelMap.Core`; the VM only orchestrates. The CLI keeps
   working — two hosts, one engine, proving the boundary holds (§9).
 
-**Demo:** Launch the app, pick two files, pick sheets, set header rows, click
-Run → mapped copy appears in the output folder.
+**Demo:** Launch the app, pick two files (sheets auto-fill), confirm header rows
+against the preview, click Run → scored mapping table appears in the window **and**
+a mapped copy appears in the output folder. Re-run with the target file open in
+Excel → friendly error, no crash.
 
 ---
 
@@ -124,11 +199,17 @@ the scored mappings before writing and steers them.
 
 **Build**
 - Mapping grid (DataGrid) bound to `MappingResult`:
-  - Column: target name, matched source (editable dropdown), score, status.
+  - Column: target name, matched source (editable dropdown), score, **match tier**, status.
   - **Override** any mapping; ambiguous matches show both candidates to choose
-    from (§2.3).
+    from (§2.3). For a **qualified needs-review** row (bare `CategoryNo` etc.) the
+    dropdown should offer the governed targets (GSC/GL/TPD…) as the obvious choices.
+  - **Strict** targets that came back Unmatched should be visually flagged as
+    "needs manual map" rather than looking like an empty miss — they were
+    *deliberately* not guessed.
   - **Hide/show** columns to cut noise from junk columns (§2.3).
   - Configurable **confidence threshold** slider that re-runs auto-apply (§2.3).
+    Note the threshold only affects **fuzzy**; tiered certainties (qualified/exact/
+    alias = score 100) are unaffected by the slider — make that legible.
   - Empty-source-column warning surfaced inline (§2.3).
 - **Write-mode toggle** (visible UI), per run (§2.5):
   - **Overwrite** (default): write from the row below the target header,
@@ -152,6 +233,17 @@ tracer that closes the remaining PRD items.
   - Save/load profiles as source-name → target-name pairs, **filename-independent**.
   - On a new session, if the same column names appear, auto-load the last
     profile or offer it as a one-click option.
+- **Rules editor (front-end)** (§2.3, §5) — now covers **both** rule files the
+  engine grew during Tracers 1–2:
+  - **Alias/synonym rules** (`synonyms.json`, seeded from `generictable.xlsx`):
+    add/remove synonym groups and members, toggle a group **strict vs loose**.
+  - **Qualified (token-gated) rules** (`qualified_rules.json`): add/edit a rule's
+    target, its **concept** tokens, and its **requireAll** qualifier slots
+    (each slot a set of synonym alternatives — e.g. GSC≡GIP≡Income Protection).
+    This is where new GL/GSC/TPD-style split fields get onboarded without code.
+  - Persist back to the JSON files; profiles may later layer per-profile rules on top.
+  - **Decision to revisit here:** qualifier matching is currently **substring**; if
+    UAT surfaces a false positive, add a word-boundary option in this editor.
 - **Settings persistence** (externalized config file) (§5, §9):
   - Output directory, default template/target, last-used threshold, window prefs.
   - Remember settings between sessions.
