@@ -21,7 +21,7 @@
 
 ## 1. Overview
 
-A desktop utility that maps columns between two arbitrary Excel files. User selects source and target files, identifies header rows, tool matches columns and handles type conversion, outputs mapped data.
+A desktop utility that maps columns between two arbitrary Excel files. User selects source and target files, identifies header rows, tool matches columns and copies values verbatim, outputs mapped data.
 
 ---
 
@@ -83,7 +83,7 @@ A desktop utility that maps columns between two arbitrary Excel files. User sele
 - .NET C# stack
 - Excel reading: open source library
 - Column matching: fuzzy string matching library
-- Data types: smart conversion with fallback to original values
+- Data types: no conversion — values written verbatim from source (see §2.4)
 
 ---
 
@@ -117,7 +117,7 @@ Process all rows. Never block on error. Report what succeeded, what failed, why.
 
 ---
 
-## 8. Reporting
+## 7. Reporting
 
 Show user a summary of what was mapped and written. Include any rows skipped or cells that could not be written. Let user decide if output is acceptable.
 
@@ -125,8 +125,8 @@ Show user a summary of what was mapped and written. Include any rows skipped or 
 
 ## 9. Architecture Considerations
 
-- Separate core logic (class library / DLL) from UI (WPF EXE) so the mapping +
-  conversion engine can be referenced by other apps or automated/headless callers.
+- Separate core logic (class library / DLL) from UI (WPF EXE) so the mapping
+  engine can be referenced by other apps or automated/headless callers.
   Target the core library at **current .NET (8/9)**. Legacy .NET Framework
   consumers are not a requirement.
 - Config externalized (settings file) for user customization
