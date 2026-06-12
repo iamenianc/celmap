@@ -1,5 +1,0 @@
-C:\Users\ianch\sourecode\repos\CelMap\publish\CelMap-cli\CelMap.Cli.pdb
-C:\Users\ianch\sourecode\repos\CelMap\publish\CelMap-cli\synonyms.json
-C:\Users\ianch\sourecode\repos\CelMap\publish\CelMap-cli\qualified_rules.json
-C:\Users\ianch\sourecode\repos\CelMap\publish\CelMap-cli\CelMap.Core.pdb
-C:\Users\ianch\sourecode\repos\CelMap\publish\CelMap-cli\CelMap.Cli.exe
