@@ -1,0 +1,15 @@
+C:\Users\ianch\sourecode\repos\CelMap\src\CelMap.Core\bin\Release\net10.0\synonyms.json
+C:\Users\ianch\sourecode\repos\CelMap\src\CelMap.Core\bin\Release\net10.0\CelMap.Core.deps.json
+C:\Users\ianch\sourecode\repos\CelMap\src\CelMap.Core\bin\Release\net10.0\CelMap.Core.dll
+C:\Users\ianch\sourecode\repos\CelMap\src\CelMap.Core\bin\Release\net10.0\CelMap.Core.pdb
+C:\Users\ianch\sourecode\repos\CelMap\src\CelMap.Core\obj\Release\net10.0\CelMap.Core.csproj.AssemblyReference.cache
+C:\Users\ianch\sourecode\repos\CelMap\src\CelMap.Core\obj\Release\net10.0\CelMap.Core.GeneratedMSBuildEditorConfig.editorconfig
+C:\Users\ianch\sourecode\repos\CelMap\src\CelMap.Core\obj\Release\net10.0\CelMap.Core.AssemblyInfoInputs.cache
+C:\Users\ianch\sourecode\repos\CelMap\src\CelMap.Core\obj\Release\net10.0\CelMap.Core.AssemblyInfo.cs
+C:\Users\ianch\sourecode\repos\CelMap\src\CelMap.Core\obj\Release\net10.0\CelMap.Core.csproj.CoreCompileInputs.cache
+C:\Users\ianch\sourecode\repos\CelMap\src\CelMap.Core\obj\Release\net10.0\CelMap.Core.sourcelink.json
+C:\Users\ianch\sourecode\repos\CelMap\src\CelMap.Core\obj\Release\net10.0\CelMap.Core.dll
+C:\Users\ianch\sourecode\repos\CelMap\src\CelMap.Core\obj\Release\net10.0\refint\CelMap.Core.dll
+C:\Users\ianch\sourecode\repos\CelMap\src\CelMap.Core\obj\Release\net10.0\CelMap.Core.pdb
+C:\Users\ianch\sourecode\repos\CelMap\src\CelMap.Core\obj\Release\net10.0\ref\CelMap.Core.dll
+C:\Users\ianch\sourecode\repos\CelMap\src\CelMap.Core\bin\Release\net10.0\qualified_rules.json

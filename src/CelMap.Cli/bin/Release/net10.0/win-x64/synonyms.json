@@ -1,0 +1,33 @@
+{
+  "groups": [
+    [ "Allowance", "Alowance", "Allowanc", "Baby Allowance", "Car Allowance" ],
+    [ "Benefit Category", "Benefit Cat", "Benefit Type" ],
+    [ "Bonus", "Incentive Payment", "Performance Bonus", "Annual Bonus", "Bonus Payment", "Bonus Amount", "Incentive" ],
+    [ "Commission", "Sales Commission", "Commission Earned", "Commission Payment", "Variable Commission" ],
+    [ "CostCentre", "Cost Center", "Cost Centre Code", "Department Code", "CC Code", "Division" ],
+    [ "DateJoinedCompany", "hire date", "Start Date", "Date of hire by the employing entity", "Employment Start Date", "Commencement Date", "Date Commenced" ],
+    [ "DET", "Cease Date", "Date ceased to meet the eligibility conditions", "Date Employment Terminated", "Termination date", "Exit Date", "Departure Date" ],
+    { "names": [ "DJS", "Coverage Start Date", "Date person became eligible for cover", "Date Joined Scheme", "Scheme Entry Date", "Date joined plan", "Join Date", "Membership Start", "Entry Date" ], "strict": true },
+    [ "DOB", "Date of birth", "birth date", "Year of birth", "Birthday", "Birthdate", "D.O.B.", "Date Born", "Born Date", "Member DOB", "Employee DOB", "Birth Year" ],
+    [ "Email", "E-mail", "Email Address", "Contact Email", "Work Email", "E-Mail Address", "Electronic Mail" ],
+    { "names": [ "EmployeeRef", "Employee Reference", "Employee Number", "Staff ID", "Employee ID", "Emp Ref", "Personnel Number", "Payroll ID", "Worker ID" ], "strict": true },
+    [ "EmployeeStatus", "Current Status", "Employment Status", "Staff Status", "Work Status", "Status Code" ],
+    [ "EmployeeStatusEndDate", "Status End Date", "End of Status Period", "Status Expiry Date", "Employment Status End" ],
+    [ "EmployeeStatusStartDate", "Status Start Date", "Status Effective Date", "Status Commencement", "Employment Status Start" ],
+    [ "Gender", "Male/Female", "Sex", "M/F", "Gender (M/F/N)", "Gender Code", "Gender Identity", "Employee Gender", "Member Gender", "Gender M/F", "Sex Code" ],
+    { "names": [ "GroupID" ], "strict": true },
+    { "names": [ "GSCCategoryNo", "Category No", "CategoryNo", "Cat No", "Category Number", "Cat Number", "Category Num" ], "strict": true },
+    [ "Hours", "Work Hours", "Hours Worked", "Weekly Hours", "Working Hours" ],
+    [ "LeaveEndDate", "Leave End", "End of Leave", "Return Date", "Leave Expiry" ],
+    [ "LeaveStartDate", "Leave Start", "Start of Leave", "Leave Commencement", "Leave Begin Date" ],
+    [ "LeaveStatus", "On Leave Status", "Current Leave Status", "Leave Type", "Leave Category", "Leave Indicator" ],
+    { "names": [ "MemberID", "CerteID", "Member Code" ], "strict": true },
+    [ "MemberNotes", "Comments", "Member Comments", "Notes" ],
+    [ "OccClass", "Job Classification", "Occupation Class", "Occupational Classification", "Occ Classification", "Occupation Category", "Job Class" ],
+    [ "Occupation", "Job Description", "Job Title", "Position", "Role", "Job Role" ],
+    { "names": [ "ReviewDate", "Annual Review Date", "Review Start Date" ], "strict": true },
+    [ "Salary", "income", "Annualised income in $AUD at Review Date\n(Pro-rata if part-time)", "Annualised income", "Base Salary", "Annual Salary", "Gross Salary", "Total Remuneration", "Package", "Annual Pay", "Yearly Salary", "Compensation", "Earnings", "Pay Rate", "Wage", "Annual Earnings" ],
+    [ "State", "Region", "State/Territory", "State or Territory", "State of domicle", "Province", "Location State", "Residential State" ],
+    { "names": [ "TFN", "Tax File N*", "Tax File Number" ], "strict": true }
+  ]
+}

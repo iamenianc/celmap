@@ -1,0 +1,23 @@
+{
+  "rules": [
+    { "target": "GSCCategoryNo", "concept": [ "category" ], "requireAll": [ "category", [ "gsc", "gip", "income protection", "salary continuance" ] ] },
+    { "target": "GLCategoryNo",  "concept": [ "category" ], "requireAll": [ "category", [ "gl", "group life", "death" ] ] },
+    { "target": "TPDCategoryNo", "concept": [ "category" ], "requireAll": [ "category", [ "tpd", "total and permanent", "total & permanent", "permanent disability" ] ] },
+
+    { "target": "GSCFUL", "concept": [ "ful" ], "requireAll": [ "ful", [ "gsc", "gip", "income protection", "salary continuance" ] ] },
+    { "target": "GLFUL",  "concept": [ "ful" ], "requireAll": [ "ful", [ "gl", "group life", "death" ] ] },
+    { "target": "TPDFUL", "concept": [ "ful" ], "requireAll": [ "ful", [ "tpd", "total and permanent", "total & permanent", "permanent disability" ] ] },
+
+    { "target": "GSCLoading", "concept": [ "loading" ], "requireAll": [ "loading", [ "gsc", "gip", "income protection", "salary continuance" ] ] },
+    { "target": "GLLoading",  "concept": [ "loading" ], "requireAll": [ "loading", [ "gl", "group life", "death" ] ] },
+    { "target": "TPDLoading", "concept": [ "loading" ], "requireAll": [ "loading", [ "tpd", "total and permanent", "total & permanent", "permanent disability" ] ] },
+
+    { "target": "GSCTerm", "concept": [ "term" ], "requireAll": [ "term", [ "gsc", "gip", "income protection", "salary continuance" ] ] },
+    { "target": "GLTerm",  "concept": [ "term" ], "requireAll": [ "term", [ "gl", "group life", "death" ] ] },
+    { "target": "TPDTerm", "concept": [ "term" ], "requireAll": [ "term", [ "tpd", "total and permanent", "total & permanent", "permanent disability" ] ] },
+
+    { "target": "GSCThreshold", "concept": [ "threshold" ], "requireAll": [ "threshold", [ "gsc", "gip", "income protection", "salary continuance" ] ] },
+    { "target": "GLThreshold",  "concept": [ "threshold" ], "requireAll": [ "threshold", [ "gl", "group life", "death" ] ] },
+    { "target": "TPDThreshold", "concept": [ "threshold" ], "requireAll": [ "threshold", [ "tpd", "total and permanent", "total & permanent", "permanent disability" ] ] }
+  ]
+}
