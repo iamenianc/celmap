@@ -19,3 +19,8 @@ test-fixtures/*.xlsx
 .idea/
 *.swp
 Thumbs.db
+
+# folders containing secrets (e.g. API keys, connection strings)
+secrets/
+UAT/
+*UAT*/
