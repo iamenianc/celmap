@@ -6,7 +6,7 @@ using CelMap.Core;
 
 public static class ParameterAutoFiller
 {
-    public static void AutoFill(MappingRowViewModel row, MainViewModel vm, AliasRules aliases)
+    public static void AutoFill(MappingRowViewModel row, ParametersViewModel vm, AliasRules aliases)
     {
         string label = row.TargetLabel;
 

@@ -1,0 +1,204 @@
+<UserControl x:Class="CelMap.App.SetupView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
+             xmlns:local="clr-namespace:CelMap.App"
+             mc:Ignorable="d" 
+             d:DataContext="{d:DesignInstance local:SetupViewModel}">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <Grid Grid.Row="0" Margin="0,0,0,10">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <StackPanel Grid.Column="0" Margin="0,0,12,0">
+                <TextBlock Text="Set up your mapping" FontSize="17" FontWeight="SemiBold"
+                           Foreground="{StaticResource InkText}" TextTrimming="CharacterEllipsis" />
+                <TextBlock Text="Drop the file you're copying FROM and the template you're copying INTO. Check the header rows, then map."
+                           Foreground="{StaticResource MutedText}" FontSize="12" Margin="0,2,0,0"
+                           TextTrimming="CharacterEllipsis" />
+            </StackPanel>
+            
+            <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                <TextBlock Text="Aa" FontSize="11" Foreground="{StaticResource MutedText}"
+                           VerticalAlignment="Center" Margin="0,0,5,0" />
+                <ComboBox Width="110" FontSize="11"
+                          ItemsSource="{Binding DataContext.DensityOptions, RelativeSource={RelativeSource AncestorType=Window}}"
+                          SelectedItem="{Binding DataContext.UiDensity, RelativeSource={RelativeSource AncestorType=Window}}" Margin="0,0,8,0"
+                          ToolTip="Display size — Large for easier reading, Compact for more on screen" />
+                <Border Background="#F2F5FA" CornerRadius="6" BorderBrush="{StaticResource Hairline}" BorderThickness="1" Padding="8,4" Margin="0,0,8,0">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="Group: " Foreground="{StaticResource MutedText}" FontSize="11" />
+                        <TextBlock Text="{Binding DataContext.Parameters.GroupIdText, RelativeSource={RelativeSource AncestorType=Window}}" Foreground="{StaticResource InkText}" FontWeight="SemiBold" FontSize="11" Margin="0,0,8,0" />
+                        <TextBlock Text="Insurer: " Foreground="{StaticResource MutedText}" FontSize="11" />
+                        <TextBlock Text="{Binding DataContext.Parameters.InsurerIdText, RelativeSource={RelativeSource AncestorType=Window}}" Foreground="{StaticResource InkText}" FontWeight="SemiBold" FontSize="11" />
+                    </StackPanel>
+                </Border>
+                <Button Content="✎ Edit Parameters" Style="{StaticResource GhostButton}" Command="{Binding DataContext.BackToParametersCommand, RelativeSource={RelativeSource AncestorType=Window}}" />
+            </StackPanel>
+        </Grid>
+
+        <!-- Two drop-zones side by side -->
+        <Grid Grid.Row="1">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="18" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+
+            <!-- SOURCE -->
+            <Border Grid.Column="0" Style="{StaticResource Card}">
+                <StackPanel>
+                    <TextBlock Text="SOURCE  ·  copy data FROM" Style="{StaticResource SectionHeader}" />
+                    <Border x:Name="SourceDropZone" Style="{StaticResource DropZone}"
+                            AllowDrop="True" Drop="SourceDropZone_Drop"
+                            DragEnter="DropZone_DragEnter" DragLeave="DropZone_DragLeave"
+                            MouseLeftButtonUp="SourceDropZone_Click" Cursor="Hand">
+                        <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
+                            <TextBlock Text="{Binding SourceFileName, FallbackValue='Drop an .xlsx / .xlsm here'}"
+                                       FontSize="14" FontWeight="SemiBold" TextAlignment="Center"
+                                       Foreground="{StaticResource InkText}" TextTrimming="CharacterEllipsis" />
+                            <TextBlock Text="or click to browse" FontSize="12" TextAlignment="Center"
+                                       Foreground="{StaticResource MutedText}" Margin="0,4,0,0" />
+                        </StackPanel>
+                    </Border>
+
+                    <Grid Margin="0,8,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="12" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0">
+                            <Label Content="Sheet" />
+                            <ComboBox ItemsSource="{Binding SourceSheets}"
+                                      SelectedItem="{Binding SelectedSourceSheet}" />
+                        </StackPanel>
+                        <StackPanel Grid.Column="2">
+                            <Label Content="Header row (auto-detected)" />
+                            <TextBox Text="{Binding SourceHeaderRow, UpdateSourceTrigger=PropertyChanged}"
+                                     Width="70" HorizontalAlignment="Left" />
+                        </StackPanel>
+                    </Grid>
+
+                    <TextBlock Text="First columns at that row:" FontSize="11"
+                               Foreground="{StaticResource MutedText}" Margin="0,8,0,3" />
+                    <ItemsControl ItemsSource="{Binding SourceHeaderPreview}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border Background="#EEF3FB" CornerRadius="4" Padding="8,3" Margin="0,0,6,6"
+                                        BorderBrush="{StaticResource Hairline}" BorderThickness="1">
+                                    <TextBlock Text="{Binding}" FontSize="12" Foreground="{StaticResource InkText}" />
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </Border>
+
+            <!-- TARGET -->
+            <Border Grid.Column="2" Style="{StaticResource Card}">
+                <StackPanel>
+                    <TextBlock Text="TARGET  ·  copy data INTO  (a copy is written, original untouched)"
+                               Style="{StaticResource SectionHeader}" TextTrimming="CharacterEllipsis" />
+                    <Border Style="{StaticResource DropZone}" Cursor="Arrow">
+                        <StackPanel VerticalAlignment="Center">
+                            <Label Content="Choose a target template" />
+                            <ComboBox ItemsSource="{Binding TargetChoices}"
+                                      SelectedItem="{Binding SelectedTargetChoice}"
+                                      DisplayMemberPath="DisplayName"
+                                      FontSize="14"
+                                      ToolTip="Select a target template from the approved templates folder" />
+                            <Grid Margin="0,5,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" FontSize="11" Foreground="{StaticResource MutedText}"
+                                           VerticalAlignment="Center" TextWrapping="Wrap"
+                                           Text="{Binding TargetChoices.Count, StringFormat='{}{0} template(s) available'}" />
+                                <Button Grid.Column="1" Style="{StaticResource LinkButton}"
+                                        Content="Use a custom file…" Command="{Binding BrowseCustomTargetCommand}"
+                                        ToolTip="Rarely needed — point at a target file outside the templates folder" />
+                            </Grid>
+                            <TextBlock Text="No templates found — use a custom file." FontSize="11"
+                                       Foreground="#B45309" Margin="0,4,0,0" TextWrapping="Wrap">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding TargetChoices.Count}" Value="0">
+                                                <Setter Property="Visibility" Value="Visible" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                        </StackPanel>
+                    </Border>
+
+                    <Grid Margin="0,8,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="12" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0">
+                            <Label Content="Sheet" />
+                            <ComboBox ItemsSource="{Binding TargetSheets}"
+                                      SelectedItem="{Binding SelectedTargetSheet}" />
+                        </StackPanel>
+                        <StackPanel Grid.Column="2">
+                            <Label Content="Header row (auto-detected)" />
+                            <TextBox Text="{Binding TargetHeaderRow, UpdateSourceTrigger=PropertyChanged}"
+                                     Width="70" HorizontalAlignment="Left" />
+                        </StackPanel>
+                    </Grid>
+
+                    <TextBlock Text="First columns at that row:" FontSize="11"
+                               Foreground="{StaticResource MutedText}" Margin="0,8,0,3" />
+                    <ItemsControl ItemsSource="{Binding TargetHeaderPreview}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border Background="#EEF3FB" CornerRadius="4" Padding="8,3" Margin="0,0,6,6"
+                                        BorderBrush="{StaticResource Hairline}" BorderThickness="1">
+                                    <TextBlock Text="{Binding}" FontSize="12" Foreground="{StaticResource InkText}" />
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </Border>
+        </Grid>
+
+        <!-- Output dir + Map button -->
+        <Grid Grid.Row="2" Margin="0,12,0,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="320" />
+                <ColumnDefinition Width="14" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <TextBlock Grid.Column="1" Text="Output folder" VerticalAlignment="Center"
+                       Foreground="{StaticResource MutedText}" FontSize="12" Margin="0,0,8,0" />
+            <TextBox Grid.Column="2" Text="{Binding DataContext.OutputDirectory, RelativeSource={RelativeSource AncestorType=Window}}" VerticalAlignment="Center" />
+            <Button Grid.Column="4" Content="Map →" Style="{StaticResource PrimaryButton}"
+                    MinWidth="160" Command="{Binding DataContext.MatchCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                    ToolTip="Auto-map the confident columns and open the mapping screen" />
+        </Grid>
+    </Grid>
+</UserControl>

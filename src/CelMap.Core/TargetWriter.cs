@@ -16,7 +16,7 @@ public sealed class TargetWriter : ITargetWriter
     {
         Directory.CreateDirectory(req.OutputDirectory);
 
-        string outputPath = BuildOutputPath(req.TargetFilePath, req.OutputDirectory);
+        string outputPath = BuildOutputPath(req.TargetFilePath, req.OutputDirectory, req.GroupId);
         File.Copy(req.TargetFilePath, outputPath, overwrite: true);
 
         var source = _reader.ReadSheet(req.SourceFilePath, req.SourceSheetName, req.SourcePassword);
@@ -213,10 +213,13 @@ public sealed class TargetWriter : ITargetWriter
         return ws.RangeUsed()?.FirstColumn().ColumnNumber() ?? 1;
     }
 
-    private static string BuildOutputPath(string targetFilePath, string outputDir)
+    /// <summary>Output file is named after the target template, optionally prefixed with the
+    /// Group ID ("{GroupId}_{template}.xlsx"). An existing file of the same name is overwritten.</summary>
+    private static string BuildOutputPath(string targetFilePath, string outputDir, string? groupId)
     {
         string name = Path.GetFileNameWithoutExtension(targetFilePath);
         string ext  = Path.GetExtension(targetFilePath);
-        return Path.Combine(outputDir, $"{name} (mapped){ext}");
+        string prefix = string.IsNullOrWhiteSpace(groupId) ? "" : $"{groupId.Trim()}_";
+        return Path.Combine(outputDir, $"{prefix}{name}{ext}");
     }
 }

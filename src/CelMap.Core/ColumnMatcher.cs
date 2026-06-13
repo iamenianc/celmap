@@ -161,50 +161,13 @@ public sealed class ColumnMatcher : IColumnMatcher
         MatcherOptions options,
         Func<HeaderColumn, bool>? sourceColumnIsEmpty)
     {
-        // Category mapping resolution depending on parameter arguments:
-        // GSCCategoryNo, GLCategoryNo, TPDCategoryNo
-        bool isGscCat = string.Equals(target.Label, "GSCCategoryNo", StringComparison.OrdinalIgnoreCase);
-        bool isGlCat = string.Equals(target.Label, "GLCategoryNo", StringComparison.OrdinalIgnoreCase);
-        bool isTpdCat = string.Equals(target.Label, "TPDCategoryNo", StringComparison.OrdinalIgnoreCase);
-
-        if (isGscCat || isGlCat || isTpdCat)
+        var active = options.ActiveCovers ?? new HashSet<string>();
+        var activeCategorySource = _qualified.ResolveActiveCategoryMapping(target.Label, sources, active);
+        if (activeCategorySource is not null)
         {
-            var conceptOnlySources = sources
-                .Where(s => _qualified.IsAmbiguousConceptOnly(target.Label, s.Label))
-                .ToList();
-
-            if (conceptOnlySources.Count > 0)
-            {
-                var active = options.ActiveCovers ?? new HashSet<string>();
-                bool gscActive = active.Contains("GSC");
-                bool glActive = active.Contains("GL");
-                bool tpdActive = active.Contains("TPD");
-
-                bool shouldMapToThisTarget = false;
-                if (gscActive)
-                {
-                    shouldMapToThisTarget = isGscCat;
-                }
-                else
-                {
-                    if (glActive && !tpdActive)
-                    {
-                        shouldMapToThisTarget = isGlCat;
-                    }
-                    else if (tpdActive && !glActive)
-                    {
-                        shouldMapToThisTarget = isTpdCat;
-                    }
-                }
-
-                if (shouldMapToThisTarget)
-                {
-                    var hitSource = conceptOnlySources[0];
-                    bool empty = sourceColumnIsEmpty?.Invoke(hitSource) ?? false;
-                    var candidates = new List<MatchCandidate> { new MatchCandidate(hitSource, 100, MatchKind.Qualified) };
-                    return new TargetColumnMapping(target, hitSource, 100, MatchStatus.Auto, candidates, empty);
-                }
-            }
+            bool empty = sourceColumnIsEmpty?.Invoke(activeCategorySource) ?? false;
+            var candidates = new List<MatchCandidate> { new MatchCandidate(activeCategorySource, 100, MatchKind.Qualified) };
+            return new TargetColumnMapping(target, activeCategorySource, 100, MatchStatus.Auto, candidates, empty);
         }
 
         var qualifiers = sources
@@ -275,21 +238,6 @@ public sealed class ColumnMatcher : IColumnMatcher
         return new MatchCandidate(source, best, MatchKind.Fuzzy);
     }
 
-    /// <summary>Whitespace-INSENSITIVE form for the exact check: lower-cased, ALL whitespace
-    /// removed, so "Member ID", "MemberID" and "member  id" collapse to one token. Punctuation
-    /// kept as-is (aliases handle e.g. "D.O.B.").</summary>
-    private static string NormalizeTight(string s)
-    {
-        Span<char> buffer = s.Length <= 256 ? stackalloc char[s.Length] : new char[s.Length];
-        int n = 0;
-        foreach (char c in s)
-            if (!char.IsWhiteSpace(c))
-                buffer[n++] = char.ToLowerInvariant(c);
-        return new string(buffer[..n]);
-    }
-
-    /// <summary>Token-preserving form for fuzzy scoring: lower-cased, newlines folded to
-    /// spaces, trimmed — but internal spaces kept so TokenSetRatio can match on shared words.</summary>
-    private static string NormalizeLoose(string s) =>
-        s.Replace('\n', ' ').Replace('\r', ' ').Trim().ToLowerInvariant();
+    private static string NormalizeTight(string s) => HeaderNormalizer.NormalizeTight(s);
+    private static string NormalizeLoose(string s) => HeaderNormalizer.NormalizeLoose(s);
 }

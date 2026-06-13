@@ -22,7 +22,9 @@ public record WriteRequest(
     IReadOnlyDictionary<int, string>? ConstantColumns = null,
     InsuranceParams? InsuranceParams = null,
     // Password for an encrypted source workbook; null/empty for a plain file.
-    string? SourcePassword = null
+    string? SourcePassword = null,
+    // Group ID prefixed to the output file name ("{GroupId}_{template}.xlsx"); null/empty omits the prefix.
+    string? GroupId = null
 );
 
 public record WriteResult(

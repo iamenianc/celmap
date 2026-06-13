@@ -67,6 +67,50 @@ public sealed class QualifiedRules
         return hasConcept && !Qualifies(target, sourceHeader);
     }
 
+    /// <summary>
+    /// Resolves any concept-only category mappings that depend on active insurance covers (GSCCategoryNo, GLCategoryNo, TPDCategoryNo).
+    /// </summary>
+    public HeaderColumn? ResolveActiveCategoryMapping(
+        string targetLabel,
+        IReadOnlyList<HeaderColumn> sources,
+        IReadOnlySet<string> activeCovers)
+    {
+        bool isGscCat = string.Equals(targetLabel, "GSCCategoryNo", StringComparison.OrdinalIgnoreCase);
+        bool isGlCat = string.Equals(targetLabel, "GLCategoryNo", StringComparison.OrdinalIgnoreCase);
+        bool isTpdCat = string.Equals(targetLabel, "TPDCategoryNo", StringComparison.OrdinalIgnoreCase);
+
+        if (!isGscCat && !isGlCat && !isTpdCat) return null;
+
+        var conceptOnlySources = sources
+            .Where(s => IsAmbiguousConceptOnly(targetLabel, s.Label))
+            .ToList();
+
+        if (conceptOnlySources.Count == 0) return null;
+
+        bool gscActive = activeCovers.Contains("GSC");
+        bool glActive = activeCovers.Contains("GL");
+        bool tpdActive = activeCovers.Contains("TPD");
+
+        bool shouldMapToThisTarget = false;
+        if (gscActive)
+        {
+            shouldMapToThisTarget = isGscCat;
+        }
+        else
+        {
+            if (glActive && !tpdActive)
+            {
+                shouldMapToThisTarget = isGlCat;
+            }
+            else if (tpdActive && !glActive)
+            {
+                shouldMapToThisTarget = isTpdCat;
+            }
+        }
+
+        return shouldMapToThisTarget ? conceptOnlySources[0] : null;
+    }
+
     // ── Persistence ──────────────────────────────────────────────────────────
     public static QualifiedRules LoadFromFile(string path)
     {
@@ -105,8 +149,7 @@ public sealed class QualifiedRules
 
     public void SaveToFile(string path) => File.WriteAllText(path, ToJson());
 
-    private static string Normalize(string s) =>
-        s.Replace('\n', ' ').Replace('\r', ' ').Trim().ToLowerInvariant();
+    private static string Normalize(string s) => HeaderNormalizer.NormalizeLoose(s);
 
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
