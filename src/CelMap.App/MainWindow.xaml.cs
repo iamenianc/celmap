@@ -9,8 +9,8 @@ namespace CelMap.App;
 /// <summary>
 /// Interaction logic for MainWindow.xaml. The window is a thin view; all orchestration
 /// lives in <see cref="MainViewModel"/>, which drives CelMap.Core. Only genuinely
-/// view-level concerns live here: the overwrite confirmation dialog, file drag-drop,
-/// and translating the Excel-grid click gestures into VM calls.
+/// view-level concerns live here: file drag-drop and translating the Excel-grid
+/// click gestures into VM calls.
 /// </summary>
 public partial class MainWindow : Window
 {
@@ -21,17 +21,8 @@ public partial class MainWindow : Window
         InitializeComponent();
         var vm = new MainViewModel();
 
-        // The destructive-Overwrite confirmation is a view concern (PRD §2.5).
-        vm.OverwriteConfirm = columnCount =>
-            MessageBox.Show(
-                this,
-                $"Overwrite mode will replace the data rows in the output copy, "
-                + $"starting just below the target header, with {columnCount} mapped column(s).\n\n"
-                + "(Your original target file is never touched — only the copy in the output folder.)\n\n"
-                + "Proceed?",
-                "Confirm overwrite",
-                MessageBoxButton.OKCancel,
-                MessageBoxImage.Warning) == MessageBoxResult.OK;
+        // Prompting for an encrypted source's password is a view concern (the masked dialog).
+        vm.PasswordPrompt = message => PasswordDialog.Prompt(this, message);
 
         // Maximise the window for the full-screen mapping grid; restore to the compact
         // size on the way back to the Setup screen.
@@ -46,16 +37,18 @@ public partial class MainWindow : Window
 
     // ---- Setup screen: drag-drop + click-to-browse -------------------------
 
-    private static string? FirstDroppedExcelFile(DragEventArgs e)
+    private static string? FirstDroppedFile(DragEventArgs e)
     {
         if (!e.Data.GetDataPresent(DataFormats.FileDrop)) return null;
         if (e.Data.GetData(DataFormats.FileDrop) is not string[] files) return null;
-        return files.FirstOrDefault(MainViewModel.IsExcelFile);
+        return files.FirstOrDefault();
     }
 
     private void DropZone_DragEnter(object sender, DragEventArgs e)
     {
-        bool ok = FirstDroppedExcelFile(e) is not null;
+        // Show the "copy" cue for files that look like a workbook; size/validity is
+        // enforced (with feedback) on the actual drop in SourceDropZone_Drop.
+        bool ok = FirstDroppedFile(e) is { } path && MainViewModel.IsExcelFile(path);
         e.Effects = ok ? DragDropEffects.Copy : DragDropEffects.None;
         if (ok && sender is Border b) b.BorderBrush = (Brush)FindResource("Accent");
         e.Handled = true;
@@ -69,25 +62,15 @@ public partial class MainWindow : Window
     private void SourceDropZone_Drop(object sender, DragEventArgs e)
     {
         DropZone_DragLeave(sender, e);
-        if (FirstDroppedExcelFile(e) is { } path) ViewModel.LoadSourceFile(path);
-    }
-
-    private void TargetDropZone_Drop(object sender, DragEventArgs e)
-    {
-        DropZone_DragLeave(sender, e);
-        if (FirstDroppedExcelFile(e) is { } path) ViewModel.LoadTargetFile(path);
+        // Route the first dropped file through LoadSourceFile so an invalid type or an
+        // oversized file produces feedback rather than silently doing nothing.
+        if (FirstDroppedFile(e) is { } path) ViewModel.LoadSourceFile(path);
     }
 
     private void SourceDropZone_Click(object sender, MouseButtonEventArgs e)
     {
         if (ViewModel.BrowseSourceCommand.CanExecute(null))
             ViewModel.BrowseSourceCommand.Execute(null);
-    }
-
-    private void TargetDropZone_Click(object sender, MouseButtonEventArgs e)
-    {
-        if (ViewModel.BrowseTargetCommand.CanExecute(null))
-            ViewModel.BrowseTargetCommand.Execute(null);
     }
 
     // ---- Mapping screen: target-column click gestures ----------------------
@@ -107,10 +90,10 @@ public partial class MainWindow : Window
     private DispatcherTimer? _clickTimer;
     private MappingRowViewModel? _pendingOpenRow;
 
-    private void TargetHeader_MouseDown(object sender, MouseButtonEventArgs e) => HandleColumnClick(sender, e);
-    private void TargetBody_MouseDown(object sender, MouseButtonEventArgs e) => HandleColumnClick(sender, e);
+    private void TargetHeader_MouseDown(object sender, MouseButtonEventArgs e) => HandleColumnClick(sender, e, isHeader: true);
+    private void TargetBody_MouseDown(object sender, MouseButtonEventArgs e) => HandleColumnClick(sender, e, isHeader: false);
 
-    private void HandleColumnClick(object sender, MouseButtonEventArgs e)
+    private void HandleColumnClick(object sender, MouseButtonEventArgs e, bool isHeader)
     {
         e.Handled = true;
         var row = Row(sender);
@@ -121,6 +104,16 @@ public partial class MainWindow : Window
             _clickTimer?.Stop();                // cancel the pending single-click open
             _pendingOpenRow = null;
             ViewModel.ClearSlot(row);           // double-click clears to blank
+            return;
+        }
+
+        // A single click on the header of the row whose picker is already open cancels it
+        // (closes the dropdown) rather than re-opening — the explicit "cancel" gesture.
+        if (isHeader && row.IsPickerOpen)
+        {
+            _clickTimer?.Stop();
+            _pendingOpenRow = null;
+            ViewModel.ClosePicker(row);
             return;
         }
 
@@ -153,30 +146,6 @@ public partial class MainWindow : Window
     {
         // The MenuItem's DataContext is the row VM (inherited from the header it hangs off).
         ViewModel.SetHidden((sender as FrameworkElement)?.DataContext as MappingRowViewModel, true);
-    }
-
-    // Type a value in the slot's constant box → commit on Enter OR when focus leaves the box
-    // (clicking away registers like Enter).
-    private void ConstantBox_KeyDown(object sender, KeyEventArgs e)
-    {
-        if (e.Key == Key.Enter && sender is TextBox tb)
-        {
-            CommitConstant(tb);
-            e.Handled = true;
-        }
-    }
-
-    private void ConstantBox_LostFocus(object sender, RoutedEventArgs e)
-    {
-        if (sender is TextBox tb) CommitConstant(tb);
-    }
-
-    private void CommitConstant(TextBox tb)
-    {
-        // Guard against re-entrancy: committing changes BodyState, which can collapse the box
-        // and fire LostFocus again. Only act when there's text and the slot isn't already this.
-        if (string.IsNullOrWhiteSpace(tb.Text)) return;
-        ViewModel.SetConstantValue(tb.DataContext as MappingRowViewModel, tb.Text);
     }
 
     // Type-ahead filter above the picker's source list. Each picker filters only its own
@@ -231,17 +200,5 @@ public partial class MainWindow : Window
             if (d is FrameworkElement fe && fe.DataContext is MappingRowViewModel row)
                 return row;
         return null;
-    }
-
-    // ---- Write-mode radios → VM.AppendMode ---------------------------------
-
-    private void OverwriteRadio_Checked(object sender, RoutedEventArgs e)
-    {
-        if (DataContext is MainViewModel vm) vm.AppendMode = false;
-    }
-
-    private void AppendRadio_Checked(object sender, RoutedEventArgs e)
-    {
-        if (DataContext is MainViewModel vm) vm.AppendMode = true;
     }
 }

@@ -61,6 +61,8 @@ public sealed partial class MainViewModel : ObservableObject
 
         OutputDirectory = @"C:\temp";
 
+        LoadTargetChoices();
+
         CategoryOverrides.CollectionChanged += (s, e) =>
         {
             if (e.NewItems != null)
@@ -246,6 +248,14 @@ public sealed partial class MainViewModel : ObservableObject
     public string? SourceFileName =>
         string.IsNullOrEmpty(SourceFilePath) ? null : Path.GetFileName(SourceFilePath);
 
+    /// <summary>Password for an encrypted source workbook, captured once when the file is loaded
+    /// and reused for every read (sheets, preview, match, write). Null for a plain file.</summary>
+    private string? _sourcePassword;
+
+    /// <summary>View hook that prompts the user for a password (returns null if they cancel).
+    /// The window wires this to a small password dialog.</summary>
+    public Func<string, string?>? PasswordPrompt { get; set; }
+
     public ObservableCollection<string> SourceSheets { get; } = new();
 
     [ObservableProperty]
@@ -286,6 +296,65 @@ public sealed partial class MainViewModel : ObservableObject
     partial void OnSourceFilePathChanged(string? value) => OnPropertyChanged(nameof(SourceFileName));
     partial void OnTargetFilePathChanged(string? value) => OnPropertyChanged(nameof(TargetFileName));
 
+    // ---- Target chosen from a curated external folder ----------------------
+    //
+    // Targets are pre-approved templates, not arbitrary user files: the user picks one from
+    // a list sourced from TargetTemplateDirectory rather than dropping/browsing for a file.
+
+    /// <summary>Folder scanned for selectable target templates.</summary>
+    public string TargetTemplateDirectory { get; } =
+        @"C:\Users\ianch\sourecode\repos\CelMap-Docs\Test_targets";
+
+    /// <summary>The .xlsx/.xlsm templates found in <see cref="TargetTemplateDirectory"/>,
+    /// shown by file name in the target picker.</summary>
+    public ObservableCollection<TargetChoice> TargetChoices { get; } = new();
+
+    /// <summary>The currently picked target template; selecting one loads it like a dropped file.</summary>
+    [ObservableProperty]
+    private TargetChoice? _selectedTargetChoice;
+
+    partial void OnSelectedTargetChoiceChanged(TargetChoice? value)
+    {
+        if (value is not null && File.Exists(value.FullPath))
+            LoadTargetFile(value.FullPath);
+    }
+
+    /// <summary>Rare escape hatch: let the user point at a target file outside the curated folder.
+    /// The chosen file is added to the list (if not already there) and selected, so the dropdown
+    /// stays the single record of which target is loaded.</summary>
+    [RelayCommand]
+    private void BrowseCustomTarget()
+    {
+        if (PickExcelFile() is not { } path) return;
+
+        var existing = TargetChoices.FirstOrDefault(
+            c => string.Equals(c.FullPath, path, StringComparison.OrdinalIgnoreCase));
+        if (existing is null)
+        {
+            existing = new TargetChoice($"{Path.GetFileName(path)}  (custom)", path);
+            TargetChoices.Add(existing);
+        }
+        SelectedTargetChoice = existing;   // triggers the load via OnSelectedTargetChoiceChanged
+    }
+
+    /// <summary>Populate <see cref="TargetChoices"/> from the template folder. Missing folder or
+    /// read errors leave the list empty rather than throwing — the picker just shows nothing.</summary>
+    private void LoadTargetChoices()
+    {
+        TargetChoices.Clear();
+        try
+        {
+            if (!Directory.Exists(TargetTemplateDirectory)) return;
+            var files = Directory.EnumerateFiles(TargetTemplateDirectory)
+                .Where(IsExcelFile)
+                .OrderBy(Path.GetFileName, StringComparer.OrdinalIgnoreCase);
+            foreach (var file in files)
+                TargetChoices.Add(new TargetChoice(Path.GetFileName(file), file));
+        }
+        catch (IOException) { /* folder unreadable — leave the list empty */ }
+        catch (UnauthorizedAccessException) { /* no access — leave the list empty */ }
+    }
+
     // ====================================================================== //
     //  Output / write options                                                //
     // ====================================================================== //
@@ -297,12 +366,6 @@ public sealed partial class MainViewModel : ObservableObject
 
     [ObservableProperty]
     private string _outputDirectory;
-
-    /// <summary>Append vs Overwrite write mode (PRD §2.5). Bound to a visible toggle.</summary>
-    [ObservableProperty]
-    private bool _appendMode;
-
-    public WriteMode WriteMode => AppendMode ? WriteMode.Append : WriteMode.Overwrite;
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(MatchCommand))]
@@ -348,6 +411,38 @@ public sealed partial class MainViewModel : ObservableObject
     public IEnumerable<SourceColumnViewModel> VisibleSourceColumns =>
         HideEmptySources ? SourceColumns.Where(s => !s.IsEmpty) : SourceColumns;
 
+    // ---- Target column visibility filters --------------------------------- //
+    //
+    // Two mutually-exclusive toggles let the user focus the TARGET grid: show only the
+    // columns still needing a mapping, or only the ones already mapped. At most one is on
+    // at a time — turning one on turns the other off. "Mapped" uses IsFilled (a linked
+    // source OR a typed constant), matching the Target counter pills.
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(VisibleRows))]
+    private bool _hideMappedTargets;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(VisibleRows))]
+    private bool _hideUnmappedTargets;
+
+    partial void OnHideMappedTargetsChanged(bool value)
+    {
+        if (value && HideUnmappedTargets) HideUnmappedTargets = false;
+    }
+
+    partial void OnHideUnmappedTargetsChanged(bool value)
+    {
+        if (value && HideMappedTargets) HideMappedTargets = false;
+    }
+
+    /// <summary>The target columns shown in the bottom grid, after applying the
+    /// mapped/unmapped visibility toggles. Order is preserved (never reorders).</summary>
+    public IEnumerable<MappingRowViewModel> VisibleRows =>
+        HideMappedTargets ? Rows.Where(r => !r.IsFilled)
+        : HideUnmappedTargets ? Rows.Where(r => r.IsFilled)
+        : Rows;
+
     public IEnumerable<SourceColumnViewModel> PickableSourceColumns =>
         SourceColumns.Where(s => !s.IsEmpty && !string.IsNullOrWhiteSpace(s.Label));
 
@@ -361,20 +456,70 @@ public sealed partial class MainViewModel : ObservableObject
         if (PickExcelFile() is { } path) LoadSourceFile(path);
     }
 
-    [RelayCommand]
-    private void BrowseTarget()
-    {
-        if (PickExcelFile() is { } path) LoadTargetFile(path);
-    }
+    /// <summary>Maximum accepted source file size. Larger files are rejected with feedback
+    /// rather than read, to keep imports responsive.</summary>
+    public const long MaxSourceFileBytes = 10L * 1024 * 1024;   // 10 MB
 
     /// <summary>Load a source workbook (from Browse or a file drop): list sheets, default to
-    /// the first, auto-detect its header row, and refresh the preview.</summary>
+    /// the first, auto-detect its header row, and refresh the preview. Rejects anything that
+    /// isn't an .xlsx/.xlsm or exceeds <see cref="MaxSourceFileBytes"/>, surfacing why in
+    /// <see cref="Status"/> and leaving the current source untouched.</summary>
     public void LoadSourceFile(string path)
     {
+        if (!IsValidSourceFile(path, out string rejection))
+        {
+            Status = rejection;
+            return;
+        }
+
+        _sourcePassword = null;
+
+        // Encrypted source? Prompt for the password (and retry on a wrong one) before reading.
+        try
+        {
+            if (_reader.IsEncrypted(path) && !TryUnlockSource(path))
+            {
+                Status = "Source is password-protected — load cancelled.";
+                return;
+            }
+        }
+        catch (Exception ex)
+        {
+            Status = FriendlyError(ex);
+            return;
+        }
+
         SourceFilePath = path;
-        LoadSheets(path, SourceSheets, s => SelectedSourceSheet = s);
+        LoadSheets(path, SourceSheets, s => SelectedSourceSheet = s, _sourcePassword);
         ResetGrid();
         RefreshSourceSetup(detect: true);
+    }
+
+    /// <summary>Prompt for the source password, retrying until it unlocks or the user cancels.
+    /// Returns true with <see cref="_sourcePassword"/> set on success.</summary>
+    private bool TryUnlockSource(string path)
+    {
+        if (PasswordPrompt is null) return false;
+
+        string fileName = Path.GetFileName(path);
+        string promptMessage = $"“{fileName}” is password-protected.\nEnter the password to open it:";
+
+        while (true)
+        {
+            string? entered = PasswordPrompt(promptMessage);
+            if (entered is null) return false;   // user cancelled
+
+            try
+            {
+                _ = _reader.GetSheetNames(path, entered);   // throws if the password is wrong
+                _sourcePassword = entered;
+                return true;
+            }
+            catch (InvalidPasswordException)
+            {
+                promptMessage = $"That password didn't work for “{fileName}”.\nTry again:";
+            }
+        }
     }
 
     public void LoadTargetFile(string path)
@@ -393,6 +538,44 @@ public sealed partial class MainViewModel : ObservableObject
             || ext.Equals(".xlsm", StringComparison.OrdinalIgnoreCase);
     }
 
+    /// <summary>Gate a candidate source file on type (.xlsx/.xlsm) and size
+    /// (≤ <see cref="MaxSourceFileBytes"/>). On rejection, returns false with a
+    /// user-facing <paramref name="reason"/> explaining what to fix.</summary>
+    public static bool IsValidSourceFile(string path, out string reason)
+    {
+        string fileName = Path.GetFileName(path);
+
+        if (!IsExcelFile(path))
+        {
+            reason = $"Can't import “{fileName}” — only Excel files (.xlsx or .xlsm) are supported.";
+            return false;
+        }
+
+        long size;
+        try
+        {
+            size = new FileInfo(path).Length;
+        }
+        catch (Exception ex)
+        {
+            reason = $"Can't import “{fileName}” — {ex.Message}";
+            return false;
+        }
+
+        if (size > MaxSourceFileBytes)
+        {
+            reason = $"Can't import “{fileName}” — it's {FormatMegabytes(size)} MB, "
+                   + $"over the {FormatMegabytes(MaxSourceFileBytes)} MB limit.";
+            return false;
+        }
+
+        reason = "";
+        return true;
+    }
+
+    private static string FormatMegabytes(long bytes) =>
+        (bytes / (1024.0 * 1024.0)).ToString("0.#");
+
     private static string? PickExcelFile()
     {
         var dlg = new OpenFileDialog
@@ -403,12 +586,13 @@ public sealed partial class MainViewModel : ObservableObject
         return dlg.ShowDialog() == true ? dlg.FileName : null;
     }
 
-    private void LoadSheets(string path, ObservableCollection<string> sheets, Action<string?> select)
+    private void LoadSheets(string path, ObservableCollection<string> sheets, Action<string?> select,
+                            string? password = null)
     {
         sheets.Clear();
         try
         {
-            foreach (var name in _reader.GetSheetNames(path))
+            foreach (var name in _reader.GetSheetNames(path, password))
                 sheets.Add(name);
             select(sheets.FirstOrDefault());   // default to first sheet (PRD: user can change)
         }
@@ -429,7 +613,7 @@ public sealed partial class MainViewModel : ObservableObject
             return;
         }
         TryReadHeaderPreview(SourceFilePath!, SelectedSourceSheet!, detect,
-            row => SourceHeaderRow = row, SourceHeaderRow - 1, SourceHeaderPreview);
+            row => SourceHeaderRow = row, SourceHeaderRow - 1, SourceHeaderPreview, _sourcePassword);
     }
 
     private void RefreshTargetSetup(bool detect)
@@ -444,12 +628,13 @@ public sealed partial class MainViewModel : ObservableObject
     }
 
     private void TryReadHeaderPreview(string path, string sheet, bool detect,
-        Action<int> setHeaderRow1Based, int currentHeaderRow0, ObservableCollection<string> preview)
+        Action<int> setHeaderRow1Based, int currentHeaderRow0, ObservableCollection<string> preview,
+        string? password = null)
     {
         preview.Clear();
         try
         {
-            var data = _reader.ReadSheet(path, sheet);
+            var data = _reader.ReadSheet(path, sheet, password);
             int headerRow0 = detect ? HeaderRowDetector.Detect(data) : currentHeaderRow0;
             if (detect) setHeaderRow1Based(headerRow0 + 1);
             else headerRow0 = Math.Clamp(headerRow0, 0, Math.Max(0, data.RowCount - 1));
@@ -486,6 +671,7 @@ public sealed partial class MainViewModel : ObservableObject
             string targetPath = TargetFilePath!;
             string sourceSheet = SelectedSourceSheet!;
             string targetSheet = SelectedTargetSheet!;
+            string? sourcePassword = _sourcePassword;
             int srcHeaderRow = SourceHeaderRow - 1;
             int tgtHeaderRow = TargetHeaderRow - 1;
             bool isFuzzyEnabled = FuzzyEnabled;
@@ -510,7 +696,7 @@ public sealed partial class MainViewModel : ObservableObject
 
             var (sourceData, targetData, sourceHeaders, targetHeaders, result) = await Task.Run(() =>
             {
-                var src = _reader.ReadSheet(sourcePath, sourceSheet);
+                var src = _reader.ReadSheet(sourcePath, sourceSheet, sourcePassword);
                 var tgt = _reader.ReadSheet(targetPath, targetSheet);
                 var srcH = HeaderExtractor.Extract(src, srcHeaderRow);
                 var tgtH = HeaderExtractor.Extract(tgt, tgtHeaderRow);
@@ -622,18 +808,6 @@ public sealed partial class MainViewModel : ObservableObject
         AfterMappingEdit();
     }
 
-    /// <summary>Fill a target column with a typed literal applied to every data row (the user
-    /// typed a value in the slot's picker box). Replaces any mapped source.</summary>
-    public void SetConstantValue(MappingRowViewModel? row, string? text)
-    {
-        if (row is null || row.IsLocked) return;
-        text = text?.Trim() ?? "";
-        if (text.Length == 0) return;
-        PushHistory();
-        row.SetConstant(text, SampleRowCount);
-        AfterMappingEdit();
-    }
-
     /// <summary>Clear a target slot back to empty — drops a mapped source or a typed constant
     /// (the user clicked the slot header).</summary>
     public void ClearSlot(MappingRowViewModel? row)
@@ -644,11 +818,27 @@ public sealed partial class MainViewModel : ObservableObject
         AfterMappingEdit();
     }
 
-    /// <summary>Open the inline source picker on a slot (the user clicked the body to change it).</summary>
+    /// <summary>Open the inline source picker on a slot (the user clicked the body to change it).
+    /// Only one picker is open at a time: opening one closes any other. An open picker stays
+    /// open until the user picks a source or clears the slot — clicking elsewhere doesn't
+    /// dismiss it (handled by the view swallowing background clicks while a picker is open).</summary>
     public void OpenPicker(MappingRowViewModel? row)
     {
         if (row is null || row.IsLocked) return;
+        foreach (var other in Rows)
+            if (other.IsPickerOpen && !ReferenceEquals(other, row))
+                other.IsPickerOpen = false;
         row.IsPickerOpen = true;
+    }
+
+    /// <summary>True when any slot's source picker is currently open.</summary>
+    public bool IsAnyPickerOpen => Rows.Any(r => r.IsPickerOpen);
+
+    /// <summary>Close a slot's source picker without changing its mapping (the user clicked the
+    /// open column's header to cancel). A filled slot returns to its preview; an empty one to blank.</summary>
+    public void ClosePicker(MappingRowViewModel? row)
+    {
+        if (row is not null) row.IsPickerOpen = false;
     }
 
     /// <summary>Hide or show a target column. Hidden columns collapse to a thin strip and are
@@ -681,6 +871,7 @@ public sealed partial class MainViewModel : ObservableObject
         OnPropertyChanged(nameof(FuzzyCount));
         OnPropertyChanged(nameof(VisibleSourceColumns));
         OnPropertyChanged(nameof(PickableSourceColumns));
+        OnPropertyChanged(nameof(VisibleRows));
     }
 
     private bool SourceIsEmpty(HeaderColumn source) =>
@@ -866,20 +1057,23 @@ public sealed partial class MainViewModel : ObservableObject
             return;
         }
 
-        if (WriteMode == WriteMode.Overwrite && !ConfirmOverwrite(filledCount))
+        // Export gate: GroupID is a constant that fills every data row, so it must not be the
+        // single longest column. If its row span exceeds that of every other written column,
+        // the mapped data doesn't reach as far as the parameter padding — block the export.
+        if (!GroupIdRowCountMatchesData(out string mismatch))
         {
-            Status = "Overwrite cancelled.";
+            Status = mismatch;
             return;
         }
 
         IsBusy = true;
-        Status = AppendMode ? "Appending…" : "Writing…";
+        Status = "Writing…";
         try
         {
             string sourcePath = SourceFilePath!;
             string targetPath = TargetFilePath!;
             string outputDir = OutputDirectory;
-            var mode = WriteMode;
+            string? sourcePassword = _sourcePassword;
 
             var defaultCovers = new HashSet<string>();
             if (DefaultCoverGSC) defaultCovers.Add("GSC");
@@ -908,13 +1102,13 @@ public sealed partial class MainViewModel : ObservableObject
             var writeResult = await Task.Run(() => _writer.Write(new WriteRequest(
                 sourcePath, _matchedSourceSheet, _matchedSrcHeaderRow,
                 targetPath, _matchedTargetSheet, _matchedTgtHeaderRow,
-                columnMap, outputDir, mode, constantColumns, insParams)));
+                columnMap, outputDir, constantColumns, insParams, sourcePassword)));
 
             string warnings = writeResult.Warnings.Count > 0
                 ? "\nWarnings:\n  • " + string.Join("\n  • ", writeResult.Warnings)
                 : string.Empty;
 
-            Status = $"Done ({mode}). {columnMap.Count} column(s) mapped, "
+            Status = $"Done. {columnMap.Count} column(s) mapped, "
                    + $"{writeResult.RowsWritten} row(s) written.{warnings}\n"
                    + $"Output: {writeResult.OutputFilePath}";
         }
@@ -928,11 +1122,42 @@ public sealed partial class MainViewModel : ObservableObject
         }
     }
 
-    /// <summary>Overridable confirmation hook (the View shows the real dialog).</summary>
-    public Func<int, bool>? OverwriteConfirm { get; set; }
+    /// <summary>Export guard: GroupID is written as a constant into every data row, so it spans
+    /// the full data range. It must not be the single longest column — if it reaches further down
+    /// than every mapped source column does, the real data stops short of the GroupID padding and
+    /// the output would carry orphan GroupID values with no member data beside them. Returns false
+    /// (with a reason) only when GroupID is strictly longer than all other written columns.</summary>
+    private bool GroupIdRowCountMatchesData(out string reason)
+    {
+        reason = "";
+        if (_sourceData is null) return true;
 
-    private bool ConfirmOverwrite(int columnCount) =>
-        OverwriteConfirm?.Invoke(columnCount) ?? true;
+        // Is GroupID actually being written this export? (It's a locked constant column.)
+        bool groupIdWritten = Rows.Any(r =>
+            !r.IsHidden && r.IsConstant && _aliases.AreAliases(r.TargetLabel, "GroupID"));
+        if (!groupIdWritten) return true;
+
+        // GroupID fills the whole data span: every row from below the header to the sheet's end.
+        int groupIdSpan = Math.Max(0, _sourceData.RowCount - (_matchedSrcHeaderRow + 1));
+
+        // The furthest any mapped SOURCE column actually carries data.
+        int maxDataSpan = 0;
+        foreach (var row in Rows)
+        {
+            if (row.IsHidden || row.LinkedSource is not { } src) continue;
+            int span = _sourceData.PopulatedRowSpan(src.ColumnIndex, _matchedSrcHeaderRow);
+            if (span > maxDataSpan) maxDataSpan = span;
+        }
+
+        if (groupIdSpan > maxDataSpan)
+        {
+            reason = $"Export blocked — GroupID would fill {groupIdSpan} row(s) but the longest "
+                   + $"mapped data column only reaches {maxDataSpan} row(s). GroupID cannot be the "
+                   + "longest column. Check the source header row and that your data columns are fully mapped.";
+            return false;
+        }
+        return true;
+    }
 
     // ====================================================================== //
     //  Helpers                                                               //

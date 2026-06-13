@@ -12,4 +12,18 @@ public static class SheetDataExtensions
         }
         return true;
     }
+
+    /// <summary>How many data rows the given column actually spans: the count from the first
+    /// row below the header down to its LAST non-empty cell (interior blanks still count, so a
+    /// column with a gap isn't reported as shorter than it really is). 0 when the column is empty.</summary>
+    public static int PopulatedRowSpan(this SheetData sheet, int columnIndex, int headerRow)
+    {
+        int lastNonEmpty = headerRow;   // nothing found yet
+        for (int r = headerRow + 1; r < sheet.RowCount; r++)
+        {
+            if (!sheet.GetCell(r, columnIndex).IsEmpty)
+                lastNonEmpty = r;
+        }
+        return lastNonEmpty - headerRow;
+    }
 }

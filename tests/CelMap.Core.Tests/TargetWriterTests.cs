@@ -154,6 +154,59 @@ public class TargetWriterTests : IDisposable
         Assert.Equal(expectDate ? CellValueType.DateTime : CellValueType.Text, value.Type);
     }
 
+    [Theory]
+    [InlineData("12345", true)]    // GroupID-style integer → number
+    [InlineData("0", true)]
+    [InlineData("-7", true)]
+    [InlineData("007", false)]     // leading zero → identifier, stays text
+    [InlineData("12.5", false)]    // not an integer
+    [InlineData("12a", false)]
+    [InlineData("", false)]        // empty → Empty, not a number
+    public void ParseConstant_TreatsStrictIntegersAsNumbers(string input, bool expectNumber)
+    {
+        var value = TargetWriter.ParseConstant(input);
+        if (expectNumber)
+            Assert.Equal(CellValueType.Number, value.Type);
+        else
+            Assert.NotEqual(CellValueType.Number, value.Type);
+    }
+
+    [Fact]
+    public void Write_ConstantColumn_Integer_WrittenAsRealNumber()
+    {
+        // GroupID/InsurerID are validated as integers and written as constants; the export
+        // must type them as Number in Excel, not text.
+        var sourcePath = CreateWorkbook(wb =>
+        {
+            var ws = wb.AddWorksheet("Data");
+            ws.Cell(1, 1).Value = "Name";
+            ws.Cell(2, 1).Value = "Alice";
+        });
+        var targetPath = CreateWorkbook(wb =>
+        {
+            var ws = wb.AddWorksheet("Report");
+            ws.Cell(1, 1).Value = "Name";
+            ws.Cell(1, 2).Value = "GroupID";
+        });
+
+        var outputDir = Path.Combine(_tempDir, "output");
+        var writer = new TargetWriter(new WorkbookReader());
+
+        var request = new WriteRequest(
+            sourcePath, "Data", 0,
+            targetPath, "Report", 0,
+            new Dictionary<int, int> { [0] = 0 },
+            outputDir,
+            ConstantColumns: new Dictionary<int, string> { [1] = "84217" });
+
+        var result = writer.Write(request);
+
+        using var wb = new XLWorkbook(result.OutputFilePath);
+        var cell = wb.Worksheet("Report").Cell(2, 2);
+        Assert.Equal(XLDataType.Number, cell.DataType);
+        Assert.Equal(84217, cell.GetDouble());
+    }
+
     [Fact]
     public void Write_NeverModifiesOriginalTarget()
     {
@@ -187,23 +240,20 @@ public class TargetWriterTests : IDisposable
     }
 
     [Fact]
-    public void Write_AppendMode_WritesAfterLastUsedRow_LeavingExistingData()
+    public void Write_WritesDataFromRowBelowHeader()
     {
         var sourcePath = CreateWorkbook(wb =>
         {
             var ws = wb.AddWorksheet("Data");
-            ws.Cell(1, 1).Value = "Name";   // header
+            ws.Cell(1, 1).Value = "Name";
             ws.Cell(2, 1).Value = "Carol";
-            ws.Cell(3, 1).Value = "Dave";
         });
 
-        // Target already has two data rows below its header.
+        // The target template is assumed blank below its header.
         var targetPath = CreateWorkbook(wb =>
         {
             var ws = wb.AddWorksheet("Report");
             ws.Cell(1, 1).Value = "Name";
-            ws.Cell(2, 1).Value = "Alice";
-            ws.Cell(3, 1).Value = "Bob";
         });
 
         var outputDir = Path.Combine(_tempDir, "output");
@@ -213,51 +263,11 @@ public class TargetWriterTests : IDisposable
             sourcePath, "Data", 0,
             targetPath, "Report", 0,
             new Dictionary<int, int> { [0] = 0 },
-            outputDir,
-            WriteMode.Append));
-
-        Assert.Equal(2, result.RowsWritten);
+            outputDir));
 
         using var wb = new XLWorkbook(result.OutputFilePath);
         var ws = wb.Worksheet("Report");
-        // existing data untouched
-        Assert.Equal("Alice", ws.Cell(2, 1).GetString());
-        Assert.Equal("Bob",   ws.Cell(3, 1).GetString());
-        // new data appended after the last used row
-        Assert.Equal("Carol", ws.Cell(4, 1).GetString());
-        Assert.Equal("Dave",  ws.Cell(5, 1).GetString());
-    }
-
-    [Fact]
-    public void Write_OverwriteMode_ReplacesDataRowsFromBelowHeader()
-    {
-        var sourcePath = CreateWorkbook(wb =>
-        {
-            var ws = wb.AddWorksheet("Data");
-            ws.Cell(1, 1).Value = "Name";
-            ws.Cell(2, 1).Value = "Carol";
-        });
-
-        var targetPath = CreateWorkbook(wb =>
-        {
-            var ws = wb.AddWorksheet("Report");
-            ws.Cell(1, 1).Value = "Name";
-            ws.Cell(2, 1).Value = "Alice";   // will be overwritten
-        });
-
-        var outputDir = Path.Combine(_tempDir, "output");
-        var writer = new TargetWriter(new WorkbookReader());
-
-        var result = writer.Write(new WriteRequest(
-            sourcePath, "Data", 0,
-            targetPath, "Report", 0,
-            new Dictionary<int, int> { [0] = 0 },
-            outputDir,
-            WriteMode.Overwrite));   // default, but explicit for clarity
-
-        using var wb = new XLWorkbook(result.OutputFilePath);
-        var ws = wb.Worksheet("Report");
-        Assert.Equal("Carol", ws.Cell(2, 1).GetString());   // replaced from row below header
+        Assert.Equal("Carol", ws.Cell(2, 1).GetString());   // data lands on row 2, below the header
     }
 
     [Fact]

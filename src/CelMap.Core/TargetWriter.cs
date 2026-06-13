@@ -19,7 +19,7 @@ public sealed class TargetWriter : ITargetWriter
         string outputPath = BuildOutputPath(req.TargetFilePath, req.OutputDirectory);
         File.Copy(req.TargetFilePath, outputPath, overwrite: true);
 
-        var source = _reader.ReadSheet(req.SourceFilePath, req.SourceSheetName);
+        var source = _reader.ReadSheet(req.SourceFilePath, req.SourceSheetName, req.SourcePassword);
         var warnings = new List<string>();
 
         // source data rows are everything below the header row
@@ -42,24 +42,14 @@ public sealed class TargetWriter : ITargetWriter
         int targetFirstUsedRow = usedRange?.FirstRow().RowNumber() ?? 1;
         int targetHeaderSheetRow = targetFirstUsedRow + req.TargetHeaderRow;
 
-        // Overwrite: start on the row right below the header, replacing data rows.
-        // Append: start on the first empty row after the last used row (PRD §2.5),
-        // never above the header (an empty template appends right below it).
-        int targetDataStartSheetRow;
-        if (req.Mode == WriteMode.Append)
-        {
-            int lastUsedRow = usedRange?.LastRow().RowNumber() ?? targetHeaderSheetRow;
-            targetDataStartSheetRow = Math.Max(lastUsedRow + 1, targetHeaderSheetRow + 1);
-        }
-        else
-        {
-            targetDataStartSheetRow = targetHeaderSheetRow + 1;
-        }
+        // The target template is assumed blank below its header, so data always starts
+        // on the row immediately below it (row 2 for a standard header-in-row-1 template).
+        int targetDataStartSheetRow = targetHeaderSheetRow + 1;
 
         // ClosedXML column numbers are 1-based; our ColumnMap keys/values are
         // 0-based indices into SheetData, which starts at firstCol of the used range.
-        int sourceFirstCol = GetFirstUsedCol(req.SourceFilePath, req.SourceSheetName);
-        int targetFirstCol = GetFirstUsedCol(req.TargetFilePath, req.TargetSheetName);
+        int sourceFirstCol = GetFirstUsedCol(req.SourceFilePath, req.SourceSheetName, req.SourcePassword);
+        int targetFirstCol = GetFirstUsedCol(req.TargetFilePath, req.TargetSheetName, null);
 
         // Resolve each typed constant once: text, unless it's a YYYY-MM-DD date.
         // Filter out dynamic cover columns from the static constants.
@@ -165,8 +155,10 @@ public sealed class TargetWriter : ITargetWriter
         return new WriteResult(outputPath, rowsWritten, warnings);
     }
 
-    /// <summary>A typed constant is written as text, unless it is a strict YYYY-MM-DD date,
-    /// in which case it is written as a real date so Excel treats it as one.</summary>
+    /// <summary>A typed constant is written as text, except: a strict YYYY-MM-DD date becomes a
+    /// real date, and a strict integer (e.g. GroupID, InsurerID) becomes a real number so Excel
+    /// types it as INT rather than text. Integers with leading zeros stay text (they're identifiers,
+    /// not quantities, and the zeros must survive).</summary>
     public static CellValue ParseConstant(string text)
     {
         if (string.IsNullOrEmpty(text)) return CellValue.Empty;
@@ -178,8 +170,21 @@ public sealed class TargetWriter : ITargetWriter
         {
             return CellValue.FromDateTime(date);
         }
+
+        if (IsStrictInteger(text)
+            && long.TryParse(text, System.Globalization.NumberStyles.AllowLeadingSign,
+                System.Globalization.CultureInfo.InvariantCulture, out var intValue))
+        {
+            return CellValue.FromNumber(intValue);
+        }
+
         return CellValue.FromText(text);
     }
+
+    /// <summary>A pure integer literal: optional leading '-', then digits, with no leading zeros
+    /// (a leading zero marks an identifier that must stay text). "0" itself is allowed.</summary>
+    private static bool IsStrictInteger(string text) =>
+        System.Text.RegularExpressions.Regex.IsMatch(text, @"^-?(0|[1-9]\d*)$");
 
     private static void WriteVerbatim(IXLCell cell, CellValue value)
     {
@@ -195,9 +200,15 @@ public sealed class TargetWriter : ITargetWriter
         }
     }
 
-    private int GetFirstUsedCol(string filePath, string sheetName)
+    private int GetFirstUsedCol(string filePath, string sheetName, string? password)
     {
-        using var wb = new XLWorkbook(filePath);
+        // Decrypt an encrypted source the same way the reader does, so this works on
+        // password-protected files too.
+        byte[] raw = File.ReadAllBytes(filePath);
+        using var stream = Crypto.OfficeCrypto.IsEncrypted(raw)
+            ? new MemoryStream(Crypto.OfficeCrypto.Decrypt(raw, password ?? ""))
+            : new MemoryStream(raw);
+        using var wb = new XLWorkbook(stream);
         var ws = wb.Worksheet(sheetName);
         return ws.RangeUsed()?.FirstColumn().ColumnNumber() ?? 1;
     }

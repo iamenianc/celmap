@@ -6,7 +6,8 @@
         xmlns:local="clr-namespace:CelMap.App"
         mc:Ignorable="d"
         Title="CelMap — Excel Column Mapper"
-        Height="860" Width="1280" MinHeight="620" MinWidth="980"
+        Height="960" Width="1000" MinHeight="720" MinWidth="900"
+        WindowStartupLocation="CenterScreen"
         Background="{StaticResource WindowBg}"
         d:DataContext="{d:DesignInstance local:MainViewModel}">
 
@@ -327,16 +328,43 @@
                     <StackPanel>
                         <TextBlock Text="TARGET  ·  copy data INTO  (a copy is written, original untouched)"
                                    Style="{StaticResource SectionHeader}" TextTrimming="CharacterEllipsis" />
-                        <Border x:Name="TargetDropZone" Style="{StaticResource DropZone}"
-                                AllowDrop="True" Drop="TargetDropZone_Drop"
-                                DragEnter="DropZone_DragEnter" DragLeave="DropZone_DragLeave"
-                                MouseLeftButtonUp="TargetDropZone_Click" Cursor="Hand">
-                            <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
-                                <TextBlock Text="{Binding TargetFileName, FallbackValue='Drop an .xlsx / .xlsm here'}"
-                                           FontSize="14" FontWeight="SemiBold" TextAlignment="Center"
-                                           Foreground="{StaticResource InkText}" TextTrimming="CharacterEllipsis" />
-                                <TextBlock Text="or click to browse" FontSize="12" TextAlignment="Center"
-                                           Foreground="{StaticResource MutedText}" Margin="0,4,0,0" />
+                        <!-- Target templates are pre-approved files chosen from a curated folder.
+                             Picking from the list is the normal path; browsing for a custom file is
+                             a rarely-needed escape hatch, demoted to a small link below. -->
+                        <Border Style="{StaticResource DropZone}" Cursor="Arrow">
+                            <StackPanel VerticalAlignment="Center">
+                                <Label Content="Choose a target template" />
+                                <ComboBox ItemsSource="{Binding TargetChoices}"
+                                          SelectedItem="{Binding SelectedTargetChoice}"
+                                          DisplayMemberPath="DisplayName"
+                                          FontSize="14"
+                                          ToolTip="Select a target template from the approved templates folder" />
+                                <Grid Margin="0,5,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" FontSize="11" Foreground="{StaticResource MutedText}"
+                                               VerticalAlignment="Center" TextWrapping="Wrap"
+                                               Text="{Binding TargetChoices.Count, StringFormat='{}{0} template(s) available'}" />
+                                    <!-- rare-use: pick a file from anywhere -->
+                                    <Button Grid.Column="1" Style="{StaticResource LinkButton}"
+                                            Content="Use a custom file…" Command="{Binding BrowseCustomTargetCommand}"
+                                            ToolTip="Rarely needed — point at a target file outside the templates folder" />
+                                </Grid>
+                                <TextBlock Text="No templates found — use a custom file." FontSize="11"
+                                           Foreground="#B45309" Margin="0,4,0,0" TextWrapping="Wrap">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding TargetChoices.Count}" Value="0">
+                                                    <Setter Property="Visibility" Value="Visible" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
                             </StackPanel>
                         </Border>
 
@@ -401,9 +429,9 @@
         <Grid Visibility="{Binding IsOnMapping, Converter={StaticResource BoolToVis}}">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />   <!-- top bar -->
-                <RowDefinition Height="*" />      <!-- source grid (~1/3) -->
+                <RowDefinition Height="Auto" />   <!-- source grid (5 rows tall, scrolls for more) -->
                 <RowDefinition Height="Auto" />   <!-- splitter -->
-                <RowDefinition Height="2*" />     <!-- target grid (~2/3) -->
+                <RowDefinition Height="*" />      <!-- target grid (takes remaining space) -->
                 <RowDefinition Height="Auto" />   <!-- status -->
             </Grid.RowDefinitions>
 
@@ -415,9 +443,6 @@
                         <ColumnDefinition Width="Auto" />   <!-- back -->
                         <ColumnDefinition Width="Auto" />   <!-- undo/redo -->
                         <ColumnDefinition Width="Auto" />   <!-- confidence -->
-                        <ColumnDefinition Width="160" />
-                        <ColumnDefinition Width="36" />
-                        <ColumnDefinition Width="Auto" />   <!-- write mode -->
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="Auto" />   <!-- linked count -->
                         <ColumnDefinition Width="Auto" />   <!-- execute -->
@@ -433,28 +458,12 @@
                                 Command="{Binding RedoCommand}" ToolTip="Ctrl+Y" />
                     </StackPanel>
 
-                    <CheckBox Grid.Column="2" Grid.ColumnSpan="3" Content="Fuzzy match · 90%"
+                    <CheckBox Grid.Column="2" Content="Fuzzy match · 90%"
                               IsChecked="{Binding FuzzyEnabled}" VerticalAlignment="Center"
                               ToolTip="Fuzzy matches apply at 90% confidence minimum. Uncheck to only allow exact/synonym matches." />
 
-                    <Border Grid.Column="5" Margin="18,0,0,0" Background="#F2F5FA" CornerRadius="6"
-                            BorderBrush="{StaticResource Hairline}" BorderThickness="1" Padding="4">
-                        <StackPanel Orientation="Horizontal">
-                            <TextBlock Text="Mode:" Foreground="{StaticResource MutedText}" FontSize="11"
-                                       VerticalAlignment="Center" Margin="6,0,4,0" />
-                            <RadioButton Content="Overwrite" GroupName="WriteMode" Padding="10,3" Margin="2,0"
-                                         IsChecked="{Binding AppendMode, Mode=OneWay, Converter={StaticResource BoolToVis}, ConverterParameter=invert}"
-                                         Checked="OverwriteRadio_Checked" VerticalContentAlignment="Center"
-                                         ToolTip="Replace data rows starting below the target header (asks to confirm)" />
-                            <RadioButton Content="Append" GroupName="WriteMode" Padding="10,3" Margin="2,0"
-                                         IsChecked="{Binding AppendMode, Mode=OneWay}"
-                                         Checked="AppendRadio_Checked" VerticalContentAlignment="Center"
-                                         ToolTip="Add rows after the last used row, leaving existing data in place" />
-                        </StackPanel>
-                    </Border>
-
                     <!-- Active Parameters Summary Badge -->
-                    <StackPanel Grid.Column="6" Orientation="Horizontal" VerticalAlignment="Center" HorizontalAlignment="Center">
+                    <StackPanel Grid.Column="3" Orientation="Horizontal" VerticalAlignment="Center" HorizontalAlignment="Center">
                         <Border Background="#F2F5FA" CornerRadius="6" BorderBrush="{StaticResource Hairline}" BorderThickness="1" Padding="8,4">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock Text="Group: " Foreground="{StaticResource MutedText}" FontSize="11" />
@@ -470,7 +479,7 @@
                     </StackPanel>
 
                     <!-- Column mapping counters -->
-                    <StackPanel Grid.Column="7" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,14,0">
+                    <StackPanel Grid.Column="4" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,14,0">
                         <Border Background="#F2F5FA" CornerRadius="6" BorderBrush="{StaticResource Hairline}" BorderThickness="1" Padding="8,4" Margin="0,0,8,0">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock Text="Source: " Foreground="{StaticResource MutedText}" FontSize="11" />
@@ -493,21 +502,27 @@
                         </Border>
                         <CheckBox Content="Hide Empty Sources" IsChecked="{Binding HideEmptySources}" VerticalAlignment="Center" FontSize="11" Margin="4,0,0,0"
                                   ToolTip="Automatically hides source columns that have no data below the header" />
+                        <CheckBox Content="Hide Unmapped Targets" IsChecked="{Binding HideUnmappedTargets}" VerticalAlignment="Center" FontSize="11" Margin="10,0,0,0"
+                                  ToolTip="Show only target columns that are already mapped (turns off &quot;Hide Mapped Targets&quot;)" />
+                        <CheckBox Content="Hide Mapped Targets" IsChecked="{Binding HideMappedTargets}" VerticalAlignment="Center" FontSize="11" Margin="10,0,0,0"
+                                  ToolTip="Show only target columns that still need a mapping (turns off &quot;Hide Unmapped Targets&quot;)" />
                     </StackPanel>
 
-                    <Button Grid.Column="8" Content="Execute ▸" Style="{StaticResource PrimaryButton}"
+                    <Button Grid.Column="5" Content="Execute ▸" Style="{StaticResource PrimaryButton}"
                             MinWidth="140" Command="{Binding WriteCommand}"
                             ToolTip="Write every mapped, non-hidden column to the output copy" />
                 </Grid>
             </Border>
 
-            <!-- SOURCE grid (top, ~1/3): header + 10 sample rows, columns across -->
+            <!-- SOURCE grid (top): header + 5 visible sample rows; the rest of the 10
+                 sampled rows are reachable by scrolling vertically. -->
             <Border Grid.Row="1" Background="{StaticResource PanelBg}" BorderBrush="{StaticResource Hairline}"
                     BorderThickness="0,0,0,1">
                 <DockPanel>
                     <TextBlock DockPanel.Dock="Top" Text="SOURCE  —  what you're copying from"
                                Style="{StaticResource SectionHeader}" Margin="14,8,14,4" />
-                    <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
+                    <!-- 40px header + 5 rows × 20px = 140px; further rows scroll into view. -->
+                    <ScrollViewer Height="140" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
                         <ItemsControl ItemsSource="{Binding VisibleSourceColumns}">
                             <ItemsControl.ItemsPanel>
                                 <ItemsPanelTemplate><StackPanel Orientation="Horizontal" /></ItemsPanelTemplate>
@@ -571,7 +586,7 @@
                                Text="TARGET  —  click a column body to choose its source · click a header to clear · double-click a header to hide"
                                Style="{StaticResource SectionHeader}" Margin="14,8,14,4" />
                     <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
-                        <ItemsControl ItemsSource="{Binding Rows}">
+                        <ItemsControl ItemsSource="{Binding VisibleRows}">
                             <ItemsControl.ItemsPanel>
                                 <ItemsPanelTemplate><StackPanel Orientation="Horizontal" /></ItemsPanelTemplate>
                             </ItemsControl.ItemsPanel>
@@ -613,11 +628,13 @@
                                               </Style>
                                           </Border.Style>
                                           <StackPanel>
-                                            <!-- mapped-source label strip (only when linked) - placed directly ABOVE the header -->
+                                            <!-- mapped-source label strip - placed directly ABOVE the header.
+                                                 Fixed height and Hidden (not Collapsed) when unlinked so every column
+                                                 reserves the same space and nothing shifts vertically on map/unmap. -->
                                             <Border BorderBrush="{StaticResource GridLine}" BorderThickness="0,0,0,1"
-                                                    Background="#FBFCFE" Padding="8,3"
-                                                    Visibility="{Binding IsLinked, Converter={StaticResource BoolToVis}}">
-                                                <StackPanel Orientation="Horizontal">
+                                                    Background="#FBFCFE" Padding="8,3" Height="24">
+                                                <StackPanel Orientation="Horizontal"
+                                                            Visibility="{Binding IsLinked, Converter={StaticResource BoolToVis}, ConverterParameter=hidden}">
                                                     <TextBlock Text="← " FontSize="11" Foreground="{StaticResource MutedText}" />
                                                     <TextBlock Text="{Binding LinkedSourceLabel}" FontSize="11"
                                                                FontWeight="SemiBold" Foreground="{StaticResource Accent}"
@@ -693,33 +710,19 @@
                                                     </ItemsControl>
                                                 </Border>
 
-                                                <!-- PICKER: a type-a-value box, a type-ahead filter, then the source list
-                                                     capped to a scrollable height — open pickers stay compact instead of
+                                                <!-- PICKER: a type-ahead filter, then the source list capped to a
+                                                     scrollable height — open pickers stay compact instead of
                                                      unrolling every source column down the grid. -->
                                                 <Border x:Name="picker" Background="White"
                                                         Visibility="{Binding BodyState, Converter={StaticResource StateToVis}, ConverterParameter=Picker}">
                                                     <StackPanel>
-                                                        <!-- type a constant: fills EVERY row of this column -->
-                                                        <Border Background="#FFFBEC" BorderBrush="{StaticResource GridLine}"
-                                                                BorderThickness="0,0,0,1" Padding="4,3">
-                                                            <TextBox FontSize="12" Tag="{Binding}"
-                                                                     KeyDown="ConstantBox_KeyDown"
-                                                                     LostFocus="ConstantBox_LostFocus"
-                                                                     ToolTip="Type a value, then press Enter or click away — it fills every row of this column">
-                                                                <TextBox.Style>
-                                                                    <Style TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}">
-                                                                        <Setter Property="Padding" Value="3,2" />
-                                                                    </Style>
-                                                                </TextBox.Style>
-                                                            </TextBox>
-                                                        </Border>
-                                                        <TextBlock Text="— or pick a source —" FontSize="10"
+                                                        <TextBlock Text="Pick a source column" FontSize="10"
                                                                    Foreground="{StaticResource MutedText}"
                                                                    HorizontalAlignment="Center" Margin="0,3" />
                                                         <TextBox FontSize="11" Margin="3,0,3,3" Padding="3,2"
                                                                  TextChanged="PickerFilter_TextChanged"
                                                                  ToolTip="Type to filter the source list" />
-                                                        <ScrollViewer MaxHeight="220" VerticalScrollBarVisibility="Auto"
+                                                        <ScrollViewer MaxHeight="420" VerticalScrollBarVisibility="Auto"
                                                                       HorizontalScrollBarVisibility="Disabled">
                                                             <ItemsControl ItemsSource="{Binding DataContext.PickableSourceColumns, RelativeSource={RelativeSource AncestorType=Window}}">
                                                                 <ItemsControl.ItemTemplate>

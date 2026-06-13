@@ -57,8 +57,59 @@ public sealed class ColumnMatcher : IColumnMatcher
             mappings.Add(Classify(target, candidates, options, sourceColumnIsEmpty));
         }
 
+        SuppressFuzzyReuseOfClaimedSources(mappings);
+
         return new MappingResult(mappings);
     }
+
+    /// <summary>A source column may legitimately be claimed by at most one auto-match.
+    /// Certainties (Exact/Alias/Qualified) win their source outright; a fuzzy guess must
+    /// never reuse a source that any other auto-match — certain OR an earlier fuzzy — has
+    /// already taken. Classification runs per-target with no cross-target awareness, so we
+    /// resolve those collisions here: walk the auto-matches once, and the first time a
+    /// source is seen it's claimed; any later fuzzy auto-match on the same source is demoted
+    /// to Unmatched (mirroring the fuzzy-disabled gate). Certainties are never demoted —
+    /// if two certainties somehow share a source, both stand, since that's a data quirk a
+    /// human should see rather than one we silently drop.</summary>
+    private static void SuppressFuzzyReuseOfClaimedSources(List<TargetColumnMapping> mappings)
+    {
+        var claimed = new HashSet<int>();
+
+        // First reserve every source claimed by a certainty, regardless of order, so a fuzzy
+        // match earlier in the list can't out-claim a certain match that appears later.
+        foreach (var m in mappings)
+            if (m.Status == MatchStatus.Auto && m.MatchedSource is { } src && WinnerKind(m) != MatchKind.Fuzzy)
+                claimed.Add(src.ColumnIndex);
+
+        for (int i = 0; i < mappings.Count; i++)
+        {
+            var m = mappings[i];
+            if (m.Status != MatchStatus.Auto || m.MatchedSource is not { } src)
+                continue;
+
+            if (WinnerKind(m) == MatchKind.Fuzzy)
+            {
+                if (claimed.Contains(src.ColumnIndex))
+                {
+                    mappings[i] = m with
+                    {
+                        MatchedSource = null,
+                        Score = 0,
+                        Status = MatchStatus.Unmatched,
+                        Candidates = Array.Empty<MatchCandidate>(),
+                        SourceColumnIsEmpty = false
+                    };
+                    continue;
+                }
+                claimed.Add(src.ColumnIndex);
+            }
+        }
+    }
+
+    /// <summary>The tier of the winning candidate for an auto-match (the top-ranked one,
+    /// which is the source that was applied).</summary>
+    private static MatchKind WinnerKind(TargetColumnMapping m) =>
+        m.Candidates.Count > 0 ? m.Candidates[0].Kind : MatchKind.Fuzzy;
 
     private TargetColumnMapping Classify(
         HeaderColumn target,

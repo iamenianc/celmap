@@ -69,6 +69,45 @@ public class ColumnMatcherTests
     }
 
     [Fact]
+    public void FuzzyMatch_DoesNotReuse_SourceClaimedByACertainty()
+    {
+        // One source column ("Email") exact-matches the "Email" target and would also
+        // fuzzy-match "Email Address" (TokenSetRatio 100). The certainty must win the
+        // source outright; the fuzzy target must be left Unmatched rather than reuse it.
+        var result = _matcher.Match(
+            Headers("Email"),
+            Headers("Email", "Email Address"),
+            new MatcherOptions(ConfidenceThreshold: 90));
+
+        var emailExact = result.Mappings.Single(m => m.TargetColumn.Label == "Email");
+        var emailFuzzy = result.Mappings.Single(m => m.TargetColumn.Label == "Email Address");
+
+        Assert.Equal(MatchStatus.Auto, emailExact.Status);
+        Assert.Equal(0, emailExact.MatchedSource!.ColumnIndex);
+
+        Assert.Equal(MatchStatus.Unmatched, emailFuzzy.Status);
+        Assert.Null(emailFuzzy.MatchedSource);
+
+        // The source is written to exactly one target.
+        Assert.Single(result.ToColumnMap());
+    }
+
+    [Fact]
+    public void TwoFuzzyTargets_CompetingForOneSource_OnlyFirstClaimsIt()
+    {
+        // No certainty here — two targets both fuzzy-match the single source. The first
+        // (in target order) claims it; the second must not reuse the same source.
+        var result = _matcher.Match(
+            Headers("Customer Name"),
+            Headers("Customer Naming", "Customer Naem"),
+            new MatcherOptions(ConfidenceThreshold: 80));
+
+        var autos = result.Mappings.Where(m => m.Status == MatchStatus.Auto).ToList();
+        Assert.Single(autos);                          // only one target keeps the source
+        Assert.Single(result.ToColumnMap());           // and it's written exactly once
+    }
+
+    [Fact]
     public void NoSourceColumns_YieldsUnmatched()
     {
         var result = _matcher.Match(
