@@ -27,7 +27,7 @@ public class HeaderRowDetectorTests
     public void Detect_TableFromRowZero_PicksRowZero()
     {
         var cells = new List<(int, int, CellValue)>();
-        // header + 6 data rows (an unbroken run of 7 ≥ MinRunRows)
+        // header + 6 data rows, all 2 cells wide → tie → topmost (row 0) wins
         for (int r = 0; r < 7; r++)
         {
             cells.Add((r, 0, r == 0 ? T("Name") : T($"n{r}")));
@@ -54,28 +54,54 @@ public class HeaderRowDetectorTests
         Assert.Equal(2, HeaderRowDetector.Detect(Sheet(cells.ToArray())));
     }
 
-    /// <summary>A short run (below MinRunRows) above the real block is skipped; the long run wins.</summary>
+    /// <summary>The widest row wins even when narrower rows sit above it: a 4-column header
+    /// below some 2-cell preamble rows is still picked over the preamble.</summary>
     [Fact]
-    public void Detect_IgnoresShortRunBeforeRealBlock()
+    public void Detect_PicksWidestRowOverNarrowerRowsAbove()
     {
         var cells = new List<(int, int, CellValue)>
         {
-            (0, 0, T("note")), (1, 0, T("note2")),   // 2-row run, too short
+            (0, 0, T("note")), (0, 1, T("x")),       // 2-cell preamble
+            (1, 0, T("note2")), (1, 1, T("y")),      // 2-cell preamble
             // row 2 blank
         };
-        for (int r = 3; r < 10; r++)            // 7-row run starting at row 3
-            cells.Add((r, 0, T($"v{r}")));
+        for (int r = 3; r < 10; r++)            // 4-wide block starting at row 3
+        {
+            cells.Add((r, 0, T($"a{r}")));
+            cells.Add((r, 1, T($"b{r}")));
+            cells.Add((r, 2, T($"c{r}")));
+            cells.Add((r, 3, T($"d{r}")));
+        }
         Assert.Equal(3, HeaderRowDetector.Detect(Sheet(cells.ToArray())));
     }
 
-    /// <summary>No run reaches MinRunRows → fall back to the first non-empty row.</summary>
+    /// <summary>Sparse preamble (one filled cell per row) does not count as a data row, so it
+    /// breaks the run rather than chaining into the real block below it. Mirrors a real file with
+    /// a staircase of decoration cells (A1, B2, C3) above a wide contiguous table.</summary>
     [Fact]
-    public void Detect_NoLongRun_FallsBackToFirstNonEmptyRow()
+    public void Detect_SparsePreambleAboveWideBlock_PicksBlockStart()
+    {
+        var cells = new List<(int, int, CellValue)>
+        {
+            (0, 0, T("A1")), (1, 1, T("B2")), (2, 2, T("C3")),   // staircase, 1 cell each
+        };
+        for (int r = 3; r < 12; r++)            // wide 9-row block starting at row 3
+        {
+            cells.Add((r, 0, T($"v{r}")));
+            cells.Add((r, 1, N(r)));
+        }
+        Assert.Equal(3, HeaderRowDetector.Detect(Sheet(cells.ToArray())));
+    }
+
+    /// <summary>Equally wide rows tie → the topmost wins (here a blank row 0, then two 2-cell
+    /// rows → row 1).</summary>
+    [Fact]
+    public void Detect_TiedWidth_PicksTopmostRow()
     {
         var sheet = Sheet(
             // row 0 blank
             (1, 0, T("A")), (1, 1, T("B")),
-            (2, 0, N(1)),   (2, 1, N(2)));   // only a 2-row run total
+            (2, 0, N(1)),   (2, 1, N(2)));   // both rows 2 cells wide
         Assert.Equal(1, HeaderRowDetector.Detect(sheet));
     }
 

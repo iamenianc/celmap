@@ -24,6 +24,10 @@ public sealed partial class SourceColumnViewModel : ObservableObject
     /// <summary>True once this source is linked to at least one target — shown as a check.</summary>
     [ObservableProperty]
     private bool _isLinked;
+    
+    /// <summary>The labels of target columns this source is mapped to (joined if multiple).</summary>
+    [ObservableProperty]
+    private string? _mappedTargetLabel;
 
     /// <summary>True while this is the source the user has clicked and is about to link.</summary>
     [ObservableProperty]

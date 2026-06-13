@@ -5,29 +5,25 @@
              StartupUri="MainWindow.xaml">
     <Application.Resources>
         <!-- Palette -->
-        <Color x:Key="AccentColor">#2D6CDF</Color>
+        <Color x:Key="AccentColor">#3d7a5a</Color>
         <SolidColorBrush x:Key="Accent" Color="{StaticResource AccentColor}" />
-        <SolidColorBrush x:Key="AccentDark" Color="#1E51B0" />
-        <!-- Warm near-white instead of pure #FFFFFF — easier on the eyes over long sessions. -->
-        <SolidColorBrush x:Key="PanelBg" Color="#FAFAF8" />
-        <SolidColorBrush x:Key="WindowBg" Color="#EEF1F6" />
-        <!-- Whisper-of-blue tint for the TARGET half of the mapping screen, so the eye always
-             knows which grid it's in. -->
-        <SolidColorBrush x:Key="TargetPanelBg" Color="#F4F8FD" />
-        <!-- Alternate-row band for the Excel-like grids. -->
-        <SolidColorBrush x:Key="ZebraBg" Color="#F3F6FA" />
-        <SolidColorBrush x:Key="Hairline" Color="#D7DCE5" />
-        <SolidColorBrush x:Key="MutedText" Color="#6B7280" />
-        <SolidColorBrush x:Key="InkText" Color="#1F2733" />
-        <SolidColorBrush x:Key="LinkedBg" Color="#E8F1FF" />
-        <SolidColorBrush x:Key="WarnBg" Color="#FFF4E5" />
-        <SolidColorBrush x:Key="WarnText" Color="#9A5B00" />
-        <SolidColorBrush x:Key="SelectBg" Color="#2D6CDF" />
-        <SolidColorBrush x:Key="GridLine" Color="#E3E8F0" />
-        <SolidColorBrush x:Key="HeaderCellBg" Color="#F2F5FA" />
-        <SolidColorBrush x:Key="AutoTint" Color="#EAF3EA" />     <!-- auto-mapped slot -->
-        <SolidColorBrush x:Key="ManualTint" Color="#E8F1FF" />   <!-- user-mapped slot -->
-        <SolidColorBrush x:Key="DropZoneBg" Color="#F7F9FC" />
+        <SolidColorBrush x:Key="AccentDark" Color="#336650" />
+        <SolidColorBrush x:Key="PanelBg" Color="#ffffff" />
+        <SolidColorBrush x:Key="WindowBg" Color="#f2f4f3" />
+        <SolidColorBrush x:Key="TargetPanelBg" Color="#f8faf9" />
+        <SolidColorBrush x:Key="ZebraBg" Color="#f8faf9" />
+        <SolidColorBrush x:Key="Hairline" Color="#dde3df" />
+        <SolidColorBrush x:Key="MutedText" Color="#6e8078" />
+        <SolidColorBrush x:Key="InkText" Color="#1a2420" />
+        <SolidColorBrush x:Key="LinkedBg" Color="#eaf2ec" />
+        <SolidColorBrush x:Key="WarnBg" Color="#faf0d8" />
+        <SolidColorBrush x:Key="WarnText" Color="#8a6010" />
+        <SolidColorBrush x:Key="SelectBg" Color="#3d7a5a" />
+        <SolidColorBrush x:Key="GridLine" Color="#c8d0cb" />
+        <SolidColorBrush x:Key="HeaderCellBg" Color="#f8faf9" />
+        <SolidColorBrush x:Key="AutoTint" Color="#daeade" />     <!-- auto-mapped slot -->
+        <SolidColorBrush x:Key="ManualTint" Color="#eaf2ec" />   <!-- user-mapped slot -->
+        <SolidColorBrush x:Key="DropZoneBg" Color="#f0f3f1" />
 
         <!-- Fixed column width for the Excel-like grids. Wide enough to show most headers in
              full on a maximised window; the rest truncate with a tooltip. -->
@@ -74,7 +70,7 @@
                                 <Setter TargetName="b" Property="Background" Value="{StaticResource AccentDark}" />
                             </Trigger>
                             <Trigger Property="IsEnabled" Value="False">
-                                <Setter TargetName="b" Property="Background" Value="#A9BCDD" />
+                                <Setter TargetName="b" Property="Background" Value="#e8ede9" />
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -99,7 +95,7 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="b" Property="Background" Value="#F2F5FA" />
+                                <Setter TargetName="b" Property="Background" Value="#f0f3f1" />
                                 <Setter TargetName="b" Property="BorderBrush" Value="{StaticResource Accent}" />
                             </Trigger>
                             <Trigger Property="IsEnabled" Value="False">
@@ -170,7 +166,7 @@
              AlternationCount=2 on the owning ItemsControl. -->
         <Style x:Key="ZebraRowCell" TargetType="Border">
             <Setter Property="Background" Value="Transparent" />
-            <Setter Property="BorderBrush" Value="#EFF2F7" />
+            <Setter Property="BorderBrush" Value="#e8ede9" />
             <Setter Property="BorderThickness" Value="0,0,0,1" />
             <Style.Triggers>
                 <DataTrigger Binding="{Binding Path=(ItemsControl.AlternationIndex),
@@ -190,17 +186,6 @@
             <Setter Property="Height" Value="40" />
         </Style>
 
-        <!-- A source column option in the inline picker list — a rounded chip so options
-             read as distinct items instead of blending into one list. -->
-        <Style x:Key="PickerOption" TargetType="Border">
-            <Setter Property="Padding" Value="7,4" />
-            <Setter Property="Margin" Value="3,2" />
-            <Setter Property="CornerRadius" Value="5" />
-            <Setter Property="BorderBrush" Value="{StaticResource Hairline}" />
-            <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="Background" Value="White" />
-        </Style>
-
         <!-- File drop-zone on the setup screen — compact -->
         <Style x:Key="DropZone" TargetType="Border">
             <Setter Property="Background" Value="{StaticResource DropZoneBg}" />
@@ -214,5 +199,7 @@
         <local:KindToBrushConverter x:Key="KindToBrush" />
         <local:BoolToVisibilityConverter x:Key="BoolToVis" />
         <local:StringMatchToVisibilityConverter x:Key="StateToVis" />
+        <local:ExcludeCurrentItemConverter x:Key="ExcludeCurrentItem" />
+        <local:AvailableSourcesForRowConverter x:Key="AvailableSourcesForRow" />
     </Application.Resources>
 </Application>

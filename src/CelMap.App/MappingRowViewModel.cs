@@ -12,10 +12,10 @@ namespace CelMap.App;
 /// source by clicking (Tracer 4). The engine's original outcome is kept so we can show
 /// the auto tier/score/status alongside any manual override.
 ///
-/// Rendered as a vertical strip: a header cell on top, then a body that shows EITHER the
-/// inline source picker (when <see cref="IsPickerOpen"/>) or the linked source's sample
-/// rows (<see cref="SampleCells"/>) — a live preview of what the output column will hold.
-/// Target column order is fixed; rows never reorder.
+/// Rendered as a vertical strip: a header cell on top, then a body that shows the linked
+/// source's sample rows (<see cref="SampleCells"/>) — a live preview of what the output
+/// column will hold — or nothing when blank. Mapping is chosen via the header's right-click
+/// "Map" submenu. Target column order is fixed; rows never reorder.
 /// </summary>
 public sealed partial class MappingRowViewModel : ObservableObject
 {
@@ -58,12 +58,6 @@ public sealed partial class MappingRowViewModel : ObservableObject
     /// empty when nothing is linked.</summary>
     [ObservableProperty]
     private IReadOnlyList<string> _sampleCells = Array.Empty<string>();
-
-    /// <summary>True when the body shows the inline source list (unmapped, or the user
-    /// clicked the body to change the pick) rather than the data preview.</summary>
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(BodyState))]
-    private bool _isPickerOpen;
 
     /// <summary>True when the user has changed the link away from the engine's auto pick.</summary>
     [ObservableProperty]
@@ -115,8 +109,6 @@ public sealed partial class MappingRowViewModel : ObservableObject
         _linkedSourceIsEmpty = _linkedSource is not null && original.SourceColumnIsEmpty;
         if (_linkedSource is not null)
             _sampleCells = Array.Empty<string>();   // filled later via SetLink with samples
-        // Slots start blank (picker closed); a single click opens the source list.
-        _isPickerOpen = false;
     }
 
     /// <summary>True when a source column is mapped here (not a constant).</summary>
@@ -128,12 +120,10 @@ public sealed partial class MappingRowViewModel : ObservableObject
     /// <summary>True when the column has any content to write — a source OR a constant.</summary>
     public bool IsFilled => IsLinked || IsConstant;
 
-    /// <summary>Which body the slot shows: "Picker" (source list + type-a-value box open),
-    /// "Preview" (filled, showing the data), or "Blank" (default — click once to open the
-    /// picker). The slot looks empty until the user engages it.</summary>
+    /// <summary>Which body the slot shows: "Preview" (filled, showing the data) or "Blank"
+    /// (empty — right-click the header → Map to fill it).</summary>
     public string BodyState =>
-        IsPickerOpen ? "Picker"
-        : IsFilled ? "Preview"
+        IsFilled ? "Preview"
         : "Blank";
 
     public string LinkedSourceLabel =>
@@ -198,7 +188,6 @@ public sealed partial class MappingRowViewModel : ObservableObject
         LinkedSource = source;
         LinkedSourceIsEmpty = source is not null && sourceIsEmpty(source);
         SampleCells = source is null ? Array.Empty<string>() : sampleFor(source);
-        IsPickerOpen = source is null;   // mapped → show preview; cleared → show picker
     }
 
     /// <summary>Fill this target with a typed literal applied to every data row. Replaces any
@@ -210,6 +199,5 @@ public sealed partial class MappingRowViewModel : ObservableObject
         IsManualOverride = false;
         ConstantValue = value;
         SampleCells = Enumerable.Repeat(value, previewRows).ToList();
-        IsPickerOpen = false;            // show the repeated-value preview
     }
 }

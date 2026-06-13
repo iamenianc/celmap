@@ -43,7 +43,7 @@
                 <WrapPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center"
                            HorizontalAlignment="Right" Margin="8,0,14,0">
                     <!-- Active Parameters Summary Badge -->
-                    <Border Background="#F2F5FA" CornerRadius="6" BorderBrush="{StaticResource Hairline}" BorderThickness="1" Padding="8,4" Margin="0,2,8,2">
+                    <Border Background="#f8faf9" CornerRadius="6" BorderBrush="{StaticResource Hairline}" BorderThickness="1" Padding="8,4" Margin="0,2,8,2">
                         <StackPanel Orientation="Horizontal">
                             <TextBlock Text="Group: " Foreground="{StaticResource MutedText}" FontSize="11" />
                             <TextBlock Text="{Binding DataContext.Parameters.GroupIdText, RelativeSource={RelativeSource AncestorType=Window}}" Foreground="{StaticResource InkText}" FontWeight="SemiBold" FontSize="11" Margin="0,0,10,0" />
@@ -77,10 +77,10 @@
                 <Border DockPanel.Dock="Bottom" Background="{StaticResource PanelBg}"
                         BorderBrush="{StaticResource Hairline}" BorderThickness="0,1,0,0" Padding="14,6">
                     <StackPanel Orientation="Horizontal">
-                        <Border Background="#F2F5FA" CornerRadius="6" BorderBrush="{StaticResource Hairline}" BorderThickness="1" Padding="8,4">
+                        <Border Background="#f8faf9" CornerRadius="6" BorderBrush="{StaticResource Hairline}" BorderThickness="1" Padding="8,4">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock Text="Source: " Foreground="{StaticResource MutedText}" FontSize="11" />
-                                <TextBlock Text="{Binding SourceMappedCount}" Foreground="#16A34A" FontWeight="Bold" FontSize="11" />
+                                <TextBlock Text="{Binding SourceMappedCount}" Foreground="#2d7d50" FontWeight="Bold" FontSize="11" />
                                 <TextBlock Text=" mapped, " Foreground="{StaticResource MutedText}" FontSize="11" />
                                 <TextBlock Text="{Binding SourceUnmappedCount}" Foreground="{StaticResource MutedText}" FontWeight="Bold" FontSize="11" />
                                 <TextBlock Text=" unmapped" Foreground="{StaticResource MutedText}" FontSize="11" />
@@ -96,39 +96,80 @@
                         </ItemsControl.ItemsPanel>
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
-                                <Border Width="{StaticResource GridColWidth}"
-                                        BorderBrush="{StaticResource GridLine}" BorderThickness="0,0,1,0">
-                                  <StackPanel>
-                                    <Border x:Name="srcHdr" Style="{StaticResource GridHeaderCell}"
-                                            BorderThickness="0,0,0,1" Panel.ZIndex="1">
-                                        <Border.RenderTransform>
-                                            <TranslateTransform Y="{Binding VerticalOffset, RelativeSource={RelativeSource AncestorType=ScrollViewer}}" />
-                                        </Border.RenderTransform>
-                                        <Grid>
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="*" />
-                                                <ColumnDefinition Width="Auto" />
-                                            </Grid.ColumnDefinitions>
-                                            <TextBlock Grid.Column="0" Text="{Binding Label}" FontWeight="SemiBold" FontSize="11"
-                                                       Foreground="{StaticResource InkText}" TextWrapping="Wrap"
-                                                       TextTrimming="CharacterEllipsis" VerticalAlignment="Center"
-                                                       ToolTip="{Binding Label}" />
-                                            <TextBlock x:Name="srcCheck" Grid.Column="1" Text="✓" FontSize="11" FontWeight="Bold"
-                                                       Margin="4,0,0,0" VerticalAlignment="Center" Visibility="Collapsed"
-                                                       Foreground="#15803D" ToolTip="Mapped to a target column" />
-                                        </Grid>
-                                    </Border>
-                                    <ItemsControl ItemsSource="{Binding SampleCells}" AlternationCount="2" Panel.ZIndex="0">
-                                        <ItemsControl.ItemTemplate>
-                                            <DataTemplate>
-                                                <Border Style="{StaticResource ZebraRowCell}">
-                                                    <TextBlock Text="{Binding}" Style="{StaticResource GridDataCell}"
-                                                               ToolTip="{Binding}" />
-                                                </Border>
-                                            </DataTemplate>
-                                        </ItemsControl.ItemTemplate>
-                                    </ItemsControl>
-                                  </StackPanel>
+                                <Border Width="{StaticResource GridColWidth}" Background="Transparent"
+                                        BorderBrush="{StaticResource GridLine}" BorderThickness="0,0,1,0"
+                                        MouseLeftButtonDown="SourceColumn_MouseDown">
+                                   <StackPanel>
+                                        <!-- HEADER CONTAINER (frozen) -->
+                                        <StackPanel Panel.ZIndex="1">
+                                            <StackPanel.RenderTransform>
+                                                <TranslateTransform Y="{Binding VerticalOffset, RelativeSource={RelativeSource AncestorType=ScrollViewer}}" />
+                                            </StackPanel.RenderTransform>
+                                            
+                                            <!-- mapped-target label strip -->
+                                            <Border BorderBrush="{StaticResource GridLine}" BorderThickness="0,0,0,1"
+                                                    Background="#ffffff" Padding="8,3" Height="24">
+                                                <Grid Visibility="{Binding IsLinked, Converter={StaticResource BoolToVis}, ConverterParameter=hidden}">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="Auto" />
+                                                        <ColumnDefinition Width="*" />
+                                                    </Grid.ColumnDefinitions>
+                                                    <TextBlock Grid.Column="0" Text="→ " FontSize="11" Foreground="{StaticResource MutedText}" />
+                                                    <TextBlock Grid.Column="1" Text="{Binding MappedTargetLabel}" FontSize="11"
+                                                               FontWeight="SemiBold" Foreground="{StaticResource Accent}"
+                                                               TextTrimming="CharacterEllipsis" ToolTip="{Binding MappedTargetLabel}" />
+                                                </Grid>
+                                            </Border>
+                                            
+                                            <Border x:Name="srcHdr"
+                                                    BorderThickness="0,0,0,1">
+                                                <Border.Style>
+                                                    <Style TargetType="Border" BasedOn="{StaticResource GridHeaderCell}">
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding IsLinked}" Value="True">
+                                                                <Setter Property="Cursor" Value="Hand" />
+                                                                <Setter Property="ToolTip" Value="Double-click to clear mappings · right-click to unmap" />
+                                                            </DataTrigger>
+                                                            <DataTrigger Binding="{Binding IsLinked}" Value="False">
+                                                                <Setter Property="Cursor" Value="Arrow" />
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </Border.Style>
+                                                <Border.ContextMenu>
+                                                    <ContextMenu DataContext="{Binding PlacementTarget.DataContext,
+                                                                 RelativeSource={RelativeSource Self}}">
+                                                        <MenuItem Header="Clear mappings" Click="SourceClearMenuItem_Click"
+                                                                  IsEnabled="{Binding IsLinked}" />
+                                                    </ContextMenu>
+                                                </Border.ContextMenu>
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*" />
+                                                        <ColumnDefinition Width="Auto" />
+                                                    </Grid.ColumnDefinitions>
+                                                    <TextBlock Grid.Column="0" Text="{Binding Label}" FontWeight="SemiBold" FontSize="11"
+                                                               Foreground="{StaticResource InkText}" TextWrapping="Wrap"
+                                                               TextTrimming="CharacterEllipsis" VerticalAlignment="Center"
+                                                               ToolTip="{Binding Label}" />
+                                                    <TextBlock x:Name="srcCheck" Grid.Column="1" Text="✓" FontSize="11" FontWeight="Bold"
+                                                               Margin="4,0,0,0" VerticalAlignment="Center" Visibility="Collapsed"
+                                                               Foreground="#2d7d50" ToolTip="Mapped to a target column" />
+                                                </Grid>
+                                            </Border>
+                                        </StackPanel>
+
+                                        <ItemsControl ItemsSource="{Binding SampleCells}" AlternationCount="2" Panel.ZIndex="0">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <Border Style="{StaticResource ZebraRowCell}">
+                                                        <TextBlock Text="{Binding}" Style="{StaticResource GridDataCell}"
+                                                                   ToolTip="{Binding}" />
+                                                    </Border>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                   </StackPanel>
                                 </Border>
                                 <DataTemplate.Triggers>
                                     <DataTrigger Binding="{Binding IsLinked}" Value="True">
@@ -164,7 +205,7 @@
                 </Border>
 
                 <TextBlock DockPanel.Dock="Top"
-                           Text="TARGET  —  click a column body to choose its source · double-click a header to clear · right-click for Clear / Hide"
+                           Text="TARGET  —  right-click a header → Map to choose its source · double-click a header to clear · right-click for Clear / Hide"
                            Style="{StaticResource SectionHeader}" Margin="14,8,14,4" />
                 <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
                     <ItemsControl ItemsSource="{Binding VisibleRows}">
@@ -175,7 +216,7 @@
                             <DataTemplate>
                                 <Grid>
                                     <!-- ============ HIDDEN: thin restore strip ============ -->
-                                    <Border x:Name="hiddenStrip" Width="26" Background="#F0F2F6"
+                                    <Border x:Name="hiddenStrip" Width="26" Background="#f0f3f1"
                                             BorderBrush="{StaticResource GridLine}" BorderThickness="0,0,1,0"
                                             Cursor="Hand" ToolTip="Hidden — click to show"
                                             MouseLeftButtonUp="HiddenStrip_Click"
@@ -215,20 +256,24 @@
                                             
                                             <!-- mapped-source label strip -->
                                             <Border BorderBrush="{StaticResource GridLine}" BorderThickness="0,0,0,1"
-                                                    Background="#FBFCFE" Padding="8,3" Height="24">
-                                                <StackPanel Orientation="Horizontal"
-                                                            Visibility="{Binding IsLinked, Converter={StaticResource BoolToVis}, ConverterParameter=hidden}">
-                                                    <TextBlock Text="← " FontSize="11" Foreground="{StaticResource MutedText}" />
-                                                    <TextBlock Text="{Binding LinkedSourceLabel}" FontSize="11"
+                                                    Background="#ffffff" Padding="8,3" Height="24">
+                                                <Grid Visibility="{Binding IsLinked, Converter={StaticResource BoolToVis}, ConverterParameter=hidden}">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="Auto" />
+                                                        <ColumnDefinition Width="*" />
+                                                    </Grid.ColumnDefinitions>
+                                                    <TextBlock Grid.Column="0" Text="← " FontSize="11" Foreground="{StaticResource MutedText}" />
+                                                    <TextBlock Grid.Column="1" Text="{Binding LinkedSourceLabel}" FontSize="11"
                                                                FontWeight="SemiBold" Foreground="{StaticResource Accent}"
                                                                TextTrimming="CharacterEllipsis" ToolTip="{Binding LinkedSourceLabel}" />
-                                                </StackPanel>
+                                                </Grid>
                                             </Border>
 
                                             <!-- header -->
                                             <Border x:Name="hdr"
                                                     BorderThickness="0,0,0,1"
-                                                    MouseLeftButtonDown="TargetHeader_MouseDown">
+                                                    MouseLeftButtonDown="TargetHeader_MouseDown"
+                                                    Tag="{Binding DataContext, RelativeSource={RelativeSource AncestorType=UserControl}}">
                                                 <Border.Style>
                                                     <Style TargetType="Border" BasedOn="{StaticResource GridHeaderCell}">
                                                         <Style.Triggers>
@@ -238,7 +283,7 @@
                                                             </DataTrigger>
                                                             <DataTrigger Binding="{Binding IsLocked}" Value="False">
                                                                 <Setter Property="Cursor" Value="Hand" />
-                                                                <Setter Property="ToolTip" Value="Click to choose · double-click to clear · right-click to hide" />
+                                                                <Setter Property="ToolTip" Value="Right-click → Map to choose · double-click to clear · right-click to hide" />
                                                             </DataTrigger>
                                                         </Style.Triggers>
                                                     </Style>
@@ -255,6 +300,37 @@
                                                                 </Style.Triggers>
                                                             </Style>
                                                         </ContextMenu.Style>
+                                                        <MenuItem Header="Map"
+                                                                  IsEnabled="{Binding HasItems, RelativeSource={RelativeSource Self}}">
+                                                            <MenuItem.ItemsSource>
+                                                                <MultiBinding Converter="{StaticResource AvailableSourcesForRow}">
+                                                                    <Binding Path="PlacementTarget.Tag.SourceColumns" RelativeSource="{RelativeSource AncestorType=ContextMenu}" />
+                                                                    <Binding Path="PlacementTarget.DataContext" RelativeSource="{RelativeSource AncestorType=ContextMenu}" />
+                                                                </MultiBinding>
+                                                            </MenuItem.ItemsSource>
+                                                            <MenuItem.ItemContainerStyle>
+                                                                <Style TargetType="MenuItem">
+                                                                    <Setter Property="Header" Value="{Binding Label}" />
+                                                                    <EventSetter Event="Click" Handler="MapMenuItem_Click" />
+                                                                </Style>
+                                                            </MenuItem.ItemContainerStyle>
+                                                        </MenuItem>
+                                                        <Separator />
+                                                        <MenuItem Header="Copy"
+                                                                  IsEnabled="{Binding HasItems, RelativeSource={RelativeSource Self}}">
+                                                            <MenuItem.ItemsSource>
+                                                                <MultiBinding Converter="{StaticResource ExcludeCurrentItem}">
+                                                                    <Binding Path="PlacementTarget.Tag.MappedRows" RelativeSource="{RelativeSource AncestorType=ContextMenu}" />
+                                                                    <Binding Path="PlacementTarget.DataContext" RelativeSource="{RelativeSource AncestorType=ContextMenu}" />
+                                                                </MultiBinding>
+                                                            </MenuItem.ItemsSource>
+                                                            <MenuItem.ItemContainerStyle>
+                                                                <Style TargetType="MenuItem">
+                                                                    <Setter Property="Header" Value="{Binding TargetLabel}" />
+                                                                    <EventSetter Event="Click" Handler="CopyMenuItem_Click" />
+                                                                </Style>
+                                                            </MenuItem.ItemContainerStyle>
+                                                        </MenuItem>
                                                         <MenuItem Header="Clear column" Click="ClearMenuItem_Click"
                                                                   IsEnabled="{Binding IsFilled}" />
                                                         <MenuItem Header="Hide column" Click="HideMenuItem_Click" />
@@ -270,15 +346,13 @@
                                         <!-- BODY -->
                                         <Grid Panel.ZIndex="0">
                                             <!-- BLANK -->
-                                            <Border x:Name="blank" Background="Transparent" Cursor="Hand"
+                                            <Border x:Name="blank" Background="Transparent"
                                                     MinHeight="120" Padding="8,0"
-                                                    MouseLeftButtonUp="TargetBody_Click"
-                                                    ToolTip="Click to choose a source or type a value"
+                                                    ToolTip="Right-click the header → Map to choose a source"
                                                     Visibility="{Binding BodyState, Converter={StaticResource StateToVis}, ConverterParameter=Blank}" />
 
                                             <!-- PREVIEW -->
-                                            <Border x:Name="preview" Cursor="Hand" Background="Transparent"
-                                                    MouseLeftButtonDown="TargetBody_MouseDown"
+                                            <Border x:Name="preview" Background="Transparent"
                                                     Visibility="{Binding BodyState, Converter={StaticResource StateToVis}, ConverterParameter=Preview}">
                                                 <ItemsControl ItemsSource="{Binding SampleCells}" AlternationCount="2">
                                                     <ItemsControl.ItemTemplate>
@@ -291,25 +365,7 @@
                                                     </ItemsControl.ItemTemplate>
                                                 </ItemsControl>
                                             </Border>
-
-                                            <!-- PICKER -->
-                                            <Border x:Name="picker" Background="White"
-                                                    Visibility="{Binding BodyState, Converter={StaticResource StateToVis}, ConverterParameter=Picker}">
-                                                <StackPanel>
-                                                    <TextBlock Text="Pick a source column" FontSize="10"
-                                                               Foreground="{StaticResource MutedText}"
-                                                               HorizontalAlignment="Center" Margin="0,3" />
-                                                    <ComboBox FontSize="11" Margin="3"
-                                                              ItemsSource="{Binding DataContext.AvailableSourceColumns, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                                              SelectedValue="{Binding LinkedSource, Mode=OneWay}"
-                                                              SelectedValuePath="Column"
-                                                              DisplayMemberPath="Label"
-                                                              SelectionChanged="SourceComboBox_SelectionChanged"
-                                                              IsDropDownOpen="{Binding IsPickerOpen, Mode=TwoWay}"
-                                                              ToolTip="Select a source column" />
-                                                </StackPanel>
-                                            </Border>
-                                        </Grid>
+                                         </Grid>
                                       </StackPanel>
                                     </Border>
                                 </Grid>
@@ -343,27 +399,27 @@
                             Margin="0,0,12,0"
                             Visibility="{Binding HasMatched, Converter={StaticResource BoolToVis}}">
                     <!-- Target mapped counter badge -->
-                    <Border Background="#F2F5FA" CornerRadius="6" BorderBrush="{StaticResource Hairline}" BorderThickness="1" Padding="8,4" Margin="0,0,12,0">
+                    <Border Background="#f8faf9" CornerRadius="6" BorderBrush="{StaticResource Hairline}" BorderThickness="1" Padding="8,4" Margin="0,0,12,0">
                         <StackPanel Orientation="Horizontal">
                             <TextBlock Text="Target: " Foreground="{StaticResource MutedText}" FontSize="11" />
-                            <TextBlock Text="{Binding TargetMappedCount}" Foreground="#16A34A" FontWeight="Bold" FontSize="11" />
+                            <TextBlock Text="{Binding TargetMappedCount}" Foreground="#2d7d50" FontWeight="Bold" FontSize="11" />
                             <TextBlock Text=" mapped, " Foreground="{StaticResource MutedText}" FontSize="11" />
-                            <TextBlock Text="{Binding TargetUnmappedCount}" Foreground="#B45309" FontWeight="Bold" FontSize="11" />
+                            <TextBlock Text="{Binding TargetUnmappedCount}" Foreground="#8a6010" FontWeight="Bold" FontSize="11" />
                             <TextBlock Text=" unmapped" Foreground="{StaticResource MutedText}" FontSize="11" />
                         </StackPanel>
                     </Border>
                     <Border Background="{StaticResource AutoTint}" CornerRadius="4" Padding="7,2" Margin="0,0,5,0">
-                        <TextBlock FontSize="11" FontWeight="SemiBold" Foreground="#15803D"
+                        <TextBlock FontSize="11" FontWeight="SemiBold" Foreground="#2d7d50"
                                    Text="{Binding ExactCount, StringFormat={}exact {0}}"
                                    ToolTip="Header names matched exactly" />
                     </Border>
-                    <Border Background="#E8F1FF" CornerRadius="4" Padding="7,2" Margin="0,0,5,0">
-                        <TextBlock FontSize="11" FontWeight="SemiBold" Foreground="#0E6BA8"
+                    <Border Background="#eaf2ec" CornerRadius="4" Padding="7,2" Margin="0,0,5,0">
+                        <TextBlock FontSize="11" FontWeight="SemiBold" Foreground="#336650"
                                    Text="{Binding AliasCount, StringFormat={}alias {0}}"
                                    ToolTip="Matched through a synonym group" />
                     </Border>
-                    <Border Background="#F1EAFB" CornerRadius="4" Padding="7,2" Margin="0,0,5,0">
-                        <TextBlock FontSize="11" FontWeight="SemiBold" Foreground="#6D28D9"
+                    <Border Background="#e8ede9" CornerRadius="4" Padding="7,2" Margin="0,0,5,0">
+                        <TextBlock FontSize="11" FontWeight="SemiBold" Foreground="#6e8078"
                                    Text="{Binding QualifiedCount, StringFormat={}qualified {0}}"
                                    ToolTip="Matched through a qualified rule" />
                     </Border>

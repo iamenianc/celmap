@@ -14,7 +14,7 @@ namespace CelMap.App;
 /// </summary>
 public sealed partial class MainViewModel : ObservableObject
 {
-    public const int SampleRowCount = 20;
+    public const int SampleRowCount = 100;
 
     private readonly IWorkbookReader _reader;
     private readonly IColumnMatcher _matcher;

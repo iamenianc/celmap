@@ -17,7 +17,10 @@ public sealed class WorkbookReader : IWorkbookReader
     public IReadOnlyList<string> GetSheetNames(string filePath, string? password = null)
     {
         using var wb = OpenWorkbook(filePath, password);
-        return wb.Worksheets.Select(ws => ws.Name).ToList();
+        return wb.Worksheets
+            .Where(ws => ws.Visibility == XLWorksheetVisibility.Visible)
+            .Select(ws => ws.Name)
+            .ToList();
     }
 
     public SheetData ReadSheet(string filePath, string sheetName, string? password = null)

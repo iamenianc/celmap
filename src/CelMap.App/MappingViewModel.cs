@@ -10,7 +10,7 @@ namespace CelMap.App;
 
 public sealed partial class MappingViewModel : ObservableObject
 {
-    private const int SampleRowCount = 20;
+    private const int SampleRowCount = 100;
 
     private SheetData? _sourceData;
     private int _matchedSrcHeaderRow;
@@ -65,23 +65,8 @@ public sealed partial class MappingViewModel : ObservableObject
         : HideUnmappedTargets ? Rows.Where(r => r.IsFilled)
         : Rows;
 
-    public IEnumerable<SourceColumnViewModel> PickableSourceColumns =>
-        SourceColumns.Where(s => !s.IsEmpty && !string.IsNullOrWhiteSpace(s.Label));
+    public IEnumerable<MappingRowViewModel> MappedRows => Rows.Where(r => r.IsFilled && !r.IsHidden);
 
-    public IEnumerable<SourceColumnViewModel> AvailableSourceColumns
-    {
-        get
-        {
-            var active = Rows.FirstOrDefault(r => r.IsPickerOpen);
-            int? currentIdx = active?.LinkedSource?.ColumnIndex;
-
-            return SourceColumns.Where(s =>
-                !s.IsEmpty &&
-                !string.IsNullOrWhiteSpace(s.Label) &&
-                (!s.IsLinked || s.Column.ColumnIndex == currentIdx)
-            );
-        }
-    }
 
     // ====================================================================== //
     //  History (Undo / Redo)                                                //
@@ -256,27 +241,6 @@ public sealed partial class MappingViewModel : ObservableObject
         AfterMappingEdit();
     }
 
-    public void OpenPicker(MappingRowViewModel? row)
-    {
-        if (row is null || row.IsLocked) return;
-        foreach (var other in Rows)
-            if (other.IsPickerOpen && !ReferenceEquals(other, row))
-                other.IsPickerOpen = false;
-        row.IsPickerOpen = true;
-        OnPropertyChanged(nameof(AvailableSourceColumns));
-    }
-
-    public bool IsAnyPickerOpen => Rows.Any(r => r.IsPickerOpen);
-
-    public void ClosePicker(MappingRowViewModel? row)
-    {
-        if (row is not null)
-        {
-            row.IsPickerOpen = false;
-            OnPropertyChanged(nameof(AvailableSourceColumns));
-        }
-    }
-
     public void SetHidden(MappingRowViewModel? row, bool hidden, Action<string> showStatus)
     {
         if (row is null || row.IsHidden == hidden || row.IsLocked) return;
@@ -312,9 +276,35 @@ public sealed partial class MappingViewModel : ObservableObject
         OnPropertyChanged(nameof(QualifiedCount));
         OnPropertyChanged(nameof(FuzzyCount));
         OnPropertyChanged(nameof(VisibleSourceColumns));
-        OnPropertyChanged(nameof(PickableSourceColumns));
-        OnPropertyChanged(nameof(AvailableSourceColumns));
         OnPropertyChanged(nameof(VisibleRows));
+        OnPropertyChanged(nameof(MappedRows));
+    }
+
+    public void CopyMapping(MappingRowViewModel? targetRow, MappingRowViewModel? sourceRow)
+    {
+        if (targetRow is null || targetRow.IsLocked || sourceRow is null || !sourceRow.IsFilled) return;
+        PushHistory();
+        if (sourceRow.IsConstant)
+        {
+            targetRow.SetConstant(sourceRow.ConstantValue!, SampleRowCount);
+        }
+        else if (sourceRow.IsLinked)
+        {
+            targetRow.SetLink(sourceRow.LinkedSource, SourceIsEmpty, SamplesFor);
+        }
+        AfterMappingEdit();
+    }
+
+    public void UnmapSource(SourceColumnViewModel? source)
+    {
+        if (source is null || !source.IsLinked) return;
+        PushHistory();
+        var targetsToClear = Rows.Where(r => r.IsLinked && r.LinkedSource?.ColumnIndex == source.Column.ColumnIndex).ToList();
+        foreach (var target in targetsToClear)
+        {
+            target.SetLink(null, SourceIsEmpty, SamplesFor);
+        }
+        AfterMappingEdit();
     }
 
     private bool SourceIsEmpty(HeaderColumn source) =>
@@ -326,9 +316,12 @@ public sealed partial class MappingViewModel : ObservableObject
     private void RefreshSourceLinkFlags()
     {
         var linked = Rows.Where(r => r.IsLinked && !r.IsHidden)
-                         .Select(r => r.LinkedSource!.ColumnIndex)
-                         .ToHashSet();
+                         .GroupBy(r => r.LinkedSource!.ColumnIndex)
+                         .ToDictionary(g => g.Key, g => string.Join(", ", g.Select(r => r.TargetLabel)));
         foreach (var s in SourceColumns)
-            s.IsLinked = linked.Contains(s.Column.ColumnIndex);
+        {
+            s.IsLinked = linked.ContainsKey(s.Column.ColumnIndex);
+            s.MappedTargetLabel = s.IsLinked ? linked[s.Column.ColumnIndex] : null;
+        }
     }
 }

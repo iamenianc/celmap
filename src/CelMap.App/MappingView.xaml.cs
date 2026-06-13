@@ -1,10 +1,7 @@
-using System;
-using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
-using System.Windows.Threading;
 
 namespace CelMap.App;
 
@@ -14,9 +11,6 @@ namespace CelMap.App;
 public partial class MappingView : UserControl
 {
     private MappingViewModel ViewModel => (MappingViewModel)DataContext;
-
-    private DispatcherTimer? _clickTimer;
-    private MappingRowViewModel? _pendingOpenRow;
 
     public MappingView()
     {
@@ -34,55 +28,29 @@ public partial class MappingView : UserControl
     private static MappingRowViewModel? Row(object sender) =>
         (sender as FrameworkElement)?.DataContext as MappingRowViewModel;
 
-    private void TargetHeader_MouseDown(object sender, MouseButtonEventArgs e) => HandleColumnClick(sender, e, isHeader: true);
-    private void TargetBody_MouseDown(object sender, MouseButtonEventArgs e) => HandleColumnClick(sender, e, isHeader: false);
-
-    private void HandleColumnClick(object sender, MouseButtonEventArgs e, bool isHeader)
+    // Double-click a header clears the column back to blank. (Mapping is now done via the
+    // right-click "Map" submenu — see MapMenuItem_Click.)
+    private void TargetHeader_MouseDown(object sender, MouseButtonEventArgs e)
     {
+        if (e.ClickCount != 2) return;
         e.Handled = true;
         var row = Row(sender);
         if (row is null || row.IsLocked) return;
-
-        if (e.ClickCount == 2)
-        {
-            _clickTimer?.Stop();                // cancel the pending single-click open
-            _pendingOpenRow = null;
-            ViewModel.ClearSlot(row);           // double-click clears to blank
-            return;
-        }
-
-        // A single click on the header of the row whose picker is already open cancels it
-        // (closes the dropdown) rather than re-opening — the explicit "cancel" gesture.
-        if (isHeader && row.IsPickerOpen)
-        {
-            _clickTimer?.Stop();
-            _pendingOpenRow = null;
-            ViewModel.ClosePicker(row);
-            return;
-        }
-
-        _pendingOpenRow = row;
-        _clickTimer ??= new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(280) };
-        _clickTimer.Tick -= ClickTimer_Tick;
-        _clickTimer.Tick += ClickTimer_Tick;
-        _clickTimer.Stop();
-        _clickTimer.Start();
+        ViewModel.ClearSlot(row);
     }
 
-    private void ClickTimer_Tick(object? sender, EventArgs e)
+    // Right-click "Map" submenu item → link the chosen source column to this target.
+    private void MapMenuItem_Click(object sender, RoutedEventArgs e)
     {
-        _clickTimer?.Stop();
-        if (_pendingOpenRow is { } row && !row.IsLocked) ViewModel.OpenPicker(row);
-        _pendingOpenRow = null;
-    }
-
-    // The blank body keeps a plain single-click → open (no clear semantics needed when empty).
-    private void TargetBody_Click(object sender, MouseButtonEventArgs e)
-    {
-        var row = Row(sender);
-        if (row is not null && !row.IsLocked)
-            ViewModel.OpenPicker(row);
-        e.Handled = true;
+        if (sender is MenuItem menuItem && menuItem.DataContext is SourceColumnViewModel source)
+        {
+            var contextMenu = FindParentContextMenu(menuItem);
+            if (contextMenu?.PlacementTarget is FrameworkElement targetElement &&
+                targetElement.DataContext is MappingRowViewModel targetRow)
+            {
+                ViewModel.MapSlot(targetRow, source);
+            }
+        }
     }
 
     // Right-click menu → clear this column back to blank.
@@ -98,17 +66,6 @@ public partial class MappingView : UserControl
         ViewModel.SetHidden((sender as FrameworkElement)?.DataContext as MappingRowViewModel, true, SetStatus);
     }
 
-    private void SourceComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
-    {
-        if (sender is not ComboBox cb || cb.SelectedItem is not SourceColumnViewModel source) return;
-        var row = FindRow(cb);
-        if (row is not null && row.LinkedSource != source.Column)
-        {
-            ViewModel.MapSlot(row, source);
-            ViewModel.ClosePicker(row);
-        }
-    }
-
     // Click the collapsed strip → show the column again.
     private void HiddenStrip_Click(object sender, MouseButtonEventArgs e)
     {
@@ -116,13 +73,43 @@ public partial class MappingView : UserControl
         e.Handled = true;
     }
 
-    /// <summary>Walk up the visual tree to the MappingRowViewModel for the target column
-    /// that owns a picker option (whose own DataContext is the source, not the row).</summary>
-    private static MappingRowViewModel? FindRow(DependencyObject? start)
+    private void CopyMenuItem_Click(object sender, RoutedEventArgs e)
     {
-        for (var d = start; d is not null; d = VisualTreeHelper.GetParent(d))
-            if (d is FrameworkElement fe && fe.DataContext is MappingRowViewModel row)
-                return row;
+        if (sender is MenuItem menuItem && menuItem.DataContext is MappingRowViewModel sourceRow)
+        {
+            var contextMenu = FindParentContextMenu(menuItem);
+            if (contextMenu?.PlacementTarget is FrameworkElement targetElement &&
+                targetElement.DataContext is MappingRowViewModel targetRow)
+            {
+                ViewModel.CopyMapping(targetRow, sourceRow);
+            }
+        }
+    }
+
+    private void SourceColumn_MouseDown(object sender, MouseButtonEventArgs e)
+    {
+        if (e.ClickCount == 2 && sender is FrameworkElement fe && fe.DataContext is SourceColumnViewModel source)
+        {
+            e.Handled = true;
+            ViewModel.UnmapSource(source);
+        }
+    }
+
+    private void SourceClearMenuItem_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is FrameworkElement fe && fe.DataContext is SourceColumnViewModel source)
+        {
+            ViewModel.UnmapSource(source);
+        }
+    }
+
+    private static ContextMenu? FindParentContextMenu(DependencyObject? child)
+    {
+        while (child is not null)
+        {
+            if (child is ContextMenu cm) return cm;
+            child = VisualTreeHelper.GetParent(child) ?? LogicalTreeHelper.GetParent(child);
+        }
         return null;
     }
 }

@@ -59,3 +59,45 @@ public sealed class BoolToVisibilityConverter : IValueConverter
     public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
         => throw new NotSupportedException();
 }
+
+/// <summary>Source columns offered in a target's "Map" submenu: every non-empty, labeled
+/// source that isn't already mapped elsewhere, plus the one currently mapped to THIS target
+/// (so re-opening the menu still shows the active pick). As more targets get mapped, the
+/// remaining options shrink.</summary>
+public sealed class AvailableSourcesForRowConverter : IMultiValueConverter
+{
+    public object Convert(object[] values, Type targetType, object parameter, CultureInfo culture)
+    {
+        if (values.Length >= 2 &&
+            values[0] is IEnumerable<SourceColumnViewModel> sources &&
+            values[1] is MappingRowViewModel row)
+        {
+            int? currentIdx = row.LinkedSource?.ColumnIndex;
+            return sources.Where(s =>
+                !s.IsEmpty &&
+                !string.IsNullOrWhiteSpace(s.Label) &&
+                (!s.IsLinked || s.Column.ColumnIndex == currentIdx)
+            ).ToList();
+        }
+        return Enumerable.Empty<SourceColumnViewModel>();
+    }
+
+    public object[] ConvertBack(object value, Type[] targetTypes, object parameter, CultureInfo culture)
+        => throw new NotSupportedException();
+}
+
+public sealed class ExcludeCurrentItemConverter : IMultiValueConverter
+{
+    public object Convert(object[] values, Type targetType, object parameter, CultureInfo culture)
+    {
+        if (values.Length >= 2 && values[0] is IEnumerable<MappingRowViewModel> allRows && values[1] is MappingRowViewModel currentRow)
+        {
+            return allRows.Where(r => !ReferenceEquals(r, currentRow)).ToList();
+        }
+        return Enumerable.Empty<MappingRowViewModel>();
+    }
+
+    public object[] ConvertBack(object value, Type[] targetTypes, object parameter, CultureInfo culture)
+        => throw new NotSupportedException();
+}
+

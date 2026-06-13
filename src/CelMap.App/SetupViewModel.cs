@@ -451,7 +451,7 @@ public sealed partial class SetupViewModel : ObservableObject
         else headerRow0 = Math.Clamp(headerRow0, 0, Math.Max(0, data.RowCount - 1));
 
         var headers = HeaderExtractor.Extract(data, headerRow0);
-        foreach (var h in headers.Take(10))
+        foreach (var h in headers)
             preview.Add(string.IsNullOrWhiteSpace(h.Label) ? "(blank)" : h.Label);
     }
 
