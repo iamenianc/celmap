@@ -60,6 +60,133 @@ public sealed partial class MainViewModel : ObservableObject
         _writer = new TargetWriter(_reader);
 
         OutputDirectory = @"C:\temp";
+
+        CategoryOverrides.CollectionChanged += (s, e) =>
+        {
+            if (e.NewItems != null)
+            {
+                foreach (CategoryCoverOverride item in e.NewItems)
+                {
+                    item.PropertyChanged += CategoryOverride_PropertyChanged;
+                }
+            }
+            if (e.OldItems != null)
+            {
+                foreach (CategoryCoverOverride item in e.OldItems)
+                {
+                    item.PropertyChanged -= CategoryOverride_PropertyChanged;
+                }
+            }
+        };
+
+        // Add first blank row
+        CategoryOverrides.Add(new CategoryCoverOverride(""));
+    }
+
+    private void CategoryOverride_PropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(CategoryCoverOverride.CategoryName) || e.PropertyName == nameof(CategoryCoverOverride.IsEnabled))
+        {
+            ContinueToSetupCommand.NotifyCanExecuteChanged();
+        }
+
+        if (e.PropertyName == nameof(CategoryCoverOverride.CategoryName) && sender is CategoryCoverOverride item)
+        {
+            System.Windows.Application.Current.Dispatcher.BeginInvoke(() => HandleCategoryOverrideChanged(item));
+        }
+    }
+
+    private void HandleCategoryOverrideChanged(CategoryCoverOverride changedItem)
+    {
+        // Remove empty rows that are not the last row
+        for (int i = CategoryOverrides.Count - 2; i >= 0; i--)
+        {
+            if (string.IsNullOrWhiteSpace(CategoryOverrides[i].CategoryName))
+            {
+                CategoryOverrides.RemoveAt(i);
+            }
+        }
+
+        // If the last row is valid and has a value, add a new blank row
+        var last = CategoryOverrides.LastOrDefault();
+        if (last != null && last.IsCategoryNameValid)
+        {
+            CategoryOverrides.Add(new CategoryCoverOverride(""));
+        }
+    }
+
+    // ====================================================================== //
+    //  Insurance Parameters (Screen 0)                                       //
+    // ====================================================================== //
+
+    [ObservableProperty]
+    private bool _isOnParameters = true;
+
+    [ObservableProperty]
+    private bool _isOnSetup;
+
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(ContinueToSetupCommand))]
+    private string _groupIdText = "";
+
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(ContinueToSetupCommand))]
+    private string _insurerIdText = "1";
+
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(ContinueToSetupCommand))]
+    private DateTime? _reviewStart = DateTime.Today;
+
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(ContinueToSetupCommand))]
+    private DateTime? _reviewEnd = DateTime.Today.AddYears(1).AddDays(-1);
+
+    [ObservableProperty]
+    private bool _defaultCoverGSC;
+
+    [ObservableProperty]
+    private bool _defaultCoverGL;
+
+    [ObservableProperty]
+    private bool _defaultCoverTPD;
+
+    [ObservableProperty]
+    private bool _defaultCoverTrauma;
+
+    [ObservableProperty]
+    private bool _defaultCoverGLTPD;
+
+    public ObservableCollection<CategoryCoverOverride> CategoryOverrides { get; } = new();
+
+    private bool CanContinueToSetup =>
+        int.TryParse(GroupIdText, out _)
+        && int.TryParse(InsurerIdText, out _)
+        && ReviewStart.HasValue
+        && ReviewEnd.HasValue
+        && CategoryOverrides.All(c => !c.IsEnabled || c.IsCategoryNameValid);
+
+    [RelayCommand(CanExecute = nameof(CanContinueToSetup))]
+    private void ContinueToSetup()
+    {
+        IsOnParameters = false;
+        IsOnSetup = true;
+        IsOnMapping = false;
+    }
+
+    [RelayCommand]
+    private void BackToParameters()
+    {
+        IsOnParameters = true;
+        IsOnSetup = false;
+        IsOnMapping = false;
+    }
+
+    partial void OnReviewStartChanged(DateTime? value)
+    {
+        if (value is DateTime start)
+        {
+            ReviewEnd = start.AddYears(1).AddDays(-1);
+        }
     }
 
     // ====================================================================== //
@@ -73,7 +200,12 @@ public sealed partial class MainViewModel : ObservableObject
     private bool _isOnMapping;
 
     [RelayCommand]
-    private void BackToSetup() => IsOnMapping = false;
+    private void BackToSetup()
+    {
+        IsOnParameters = false;
+        IsOnSetup = true;
+        IsOnMapping = false;
+    }
 
     // ====================================================================== //
     //  Setup screen: source / target files, sheets, header rows              //
@@ -131,7 +263,9 @@ public sealed partial class MainViewModel : ObservableObject
     // ====================================================================== //
 
     [ObservableProperty]
-    private int _confidenceThreshold = 80;
+    private bool _fuzzyEnabled = true;
+
+    public int ConfidenceThreshold => 90;
 
     [ObservableProperty]
     private string _outputDirectory;
@@ -166,6 +300,21 @@ public sealed partial class MainViewModel : ObservableObject
     private bool _hasMatched;
 
     public int LinkedCount => Rows.Count(r => r.IsLinked && !r.IsHidden);
+
+    public int SourceMappedCount => SourceColumns.Count(s => s.IsLinked);
+    public int SourceUnmappedCount => SourceColumns.Count(s => !s.IsLinked);
+    public int TargetMappedCount => Rows.Count(r => r.IsFilled && !r.IsHidden);
+    public int TargetUnmappedCount => Rows.Count(r => !r.IsFilled && !r.IsHidden);
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(VisibleSourceColumns))]
+    private bool _hideEmptySources;
+
+    public IEnumerable<SourceColumnViewModel> VisibleSourceColumns =>
+        HideEmptySources ? SourceColumns.Where(s => !s.IsEmpty) : SourceColumns;
+
+    public IEnumerable<SourceColumnViewModel> PickableSourceColumns =>
+        SourceColumns.Where(s => !s.IsEmpty && !string.IsNullOrWhiteSpace(s.Label));
 
     // ====================================================================== //
     //  File pickers + drag-drop                                              //
@@ -304,7 +453,25 @@ public sealed partial class MainViewModel : ObservableObject
             string targetSheet = SelectedTargetSheet!;
             int srcHeaderRow = SourceHeaderRow - 1;
             int tgtHeaderRow = TargetHeaderRow - 1;
-            int threshold = ConfidenceThreshold;
+            bool isFuzzyEnabled = FuzzyEnabled;
+
+            var activeCovers = new HashSet<string>();
+            if (DefaultCoverGSC) activeCovers.Add("GSC");
+            if (DefaultCoverGL) activeCovers.Add("GL");
+            if (DefaultCoverTPD) activeCovers.Add("TPD");
+            if (DefaultCoverTrauma) activeCovers.Add("Trauma");
+            if (DefaultCoverGLTPD) activeCovers.Add("GLTPD");
+            foreach (var cov in CategoryOverrides)
+            {
+                if (cov.IsEnabled && cov.IsCategoryNameValid)
+                {
+                    if (cov.Gsc) activeCovers.Add("GSC");
+                    if (cov.Gl) activeCovers.Add("GL");
+                    if (cov.Tpd) activeCovers.Add("TPD");
+                    if (cov.Trauma) activeCovers.Add("Trauma");
+                    if (cov.GlTpd) activeCovers.Add("GLTPD");
+                }
+            }
 
             var (sourceData, targetData, sourceHeaders, targetHeaders, result) = await Task.Run(() =>
             {
@@ -314,7 +481,7 @@ public sealed partial class MainViewModel : ObservableObject
                 var tgtH = HeaderExtractor.Extract(tgt, tgtHeaderRow);
                 var res = _matcher.Match(
                     srcH, tgtH,
-                    new MatcherOptions(ConfidenceThreshold: threshold),
+                    new MatcherOptions(ConfidenceThreshold: 90, FuzzyEnabled: isFuzzyEnabled, ActiveCovers: activeCovers),
                     s => src.ColumnIsEmpty(s.ColumnIndex, srcHeaderRow));
                 return (src, tgt, srcH, tgtH, res);
             });
@@ -344,6 +511,8 @@ public sealed partial class MainViewModel : ObservableObject
                    + "Check the highlighted ones, map the rest, then Execute.";
             HasMatched = true;
             ResetHistory();
+            IsOnParameters = false;
+            IsOnSetup = false;
             IsOnMapping = true;   // straight into the full-window mapping screen
         }
         catch (Exception ex)
@@ -391,12 +560,17 @@ public sealed partial class MainViewModel : ObservableObject
             var row = new MappingRowViewModel(m);
             // Seed the preview for auto-linked slots.
             if (row.LinkedSource is { } src)
+            {
                 row.SetLink(src, SourceIsEmpty, SamplesFor);
+            }
+            else
+            {
+                ParameterAutoFiller.AutoFill(row, this, _aliases);
+            }
             Rows.Add(row);
         }
 
-        RefreshSourceLinkFlags();
-        OnPropertyChanged(nameof(LinkedCount));
+        AfterMappingEdit();
     }
 
     private IReadOnlyList<string> SamplesFor(HeaderColumn source) =>
@@ -410,7 +584,7 @@ public sealed partial class MainViewModel : ObservableObject
     /// slot's inline picker). Source reuse is allowed.</summary>
     public void MapSlot(MappingRowViewModel? row, SourceColumnViewModel? source)
     {
-        if (row is null || source is null) return;
+        if (row is null || source is null || row.IsLocked) return;
         PushHistory();
         row.SetLink(source.Column, SourceIsEmpty, SamplesFor);
         AfterMappingEdit();
@@ -420,7 +594,7 @@ public sealed partial class MainViewModel : ObservableObject
     /// typed a value in the slot's picker box). Replaces any mapped source.</summary>
     public void SetConstantValue(MappingRowViewModel? row, string? text)
     {
-        if (row is null) return;
+        if (row is null || row.IsLocked) return;
         text = text?.Trim() ?? "";
         if (text.Length == 0) return;
         PushHistory();
@@ -432,7 +606,7 @@ public sealed partial class MainViewModel : ObservableObject
     /// (the user clicked the slot header).</summary>
     public void ClearSlot(MappingRowViewModel? row)
     {
-        if (row is null || !row.IsFilled) return;
+        if (row is null || !row.IsFilled || row.IsLocked) return;
         PushHistory();
         row.SetLink(null, SourceIsEmpty, SamplesFor);   // also clears any constant
         AfterMappingEdit();
@@ -441,7 +615,7 @@ public sealed partial class MainViewModel : ObservableObject
     /// <summary>Open the inline source picker on a slot (the user clicked the body to change it).</summary>
     public void OpenPicker(MappingRowViewModel? row)
     {
-        if (row is null) return;
+        if (row is null || row.IsLocked) return;
         row.IsPickerOpen = true;
     }
 
@@ -450,7 +624,7 @@ public sealed partial class MainViewModel : ObservableObject
     /// never be hidden — there's content destined for it, so hiding would silently drop it.</summary>
     public void SetHidden(MappingRowViewModel? row, bool hidden)
     {
-        if (row is null || row.IsHidden == hidden) return;
+        if (row is null || row.IsHidden == hidden || row.IsLocked) return;
         if (hidden && row.IsFilled)
         {
             Status = $"“{row.TargetLabel}” is mapped — clear it before hiding.";
@@ -465,6 +639,12 @@ public sealed partial class MainViewModel : ObservableObject
     {
         RefreshSourceLinkFlags();
         OnPropertyChanged(nameof(LinkedCount));
+        OnPropertyChanged(nameof(SourceMappedCount));
+        OnPropertyChanged(nameof(SourceUnmappedCount));
+        OnPropertyChanged(nameof(TargetMappedCount));
+        OnPropertyChanged(nameof(TargetUnmappedCount));
+        OnPropertyChanged(nameof(VisibleSourceColumns));
+        OnPropertyChanged(nameof(PickableSourceColumns));
     }
 
     private bool SourceIsEmpty(HeaderColumn source) =>
@@ -568,19 +748,35 @@ public sealed partial class MainViewModel : ObservableObject
     //  Threshold re-apply (fuzzy only — tiers are score 100)                 //
     // ====================================================================== //
 
-    partial void OnConfidenceThresholdChanged(int value)
+    partial void OnFuzzyEnabledChanged(bool value)
     {
         if (!HasMatched || _sourceData is null) return;
 
-        // Re-run the engine at the new threshold and re-seed auto links, but preserve the
-        // user's manual overrides so the slider doesn't undo clicks.
         var manual = Rows.Where(r => r.IsManualOverride)
                          .ToDictionary(r => r.TargetColumn.ColumnIndex, r => r.LinkedSource);
         var hidden = Rows.Where(r => r.IsHidden).Select(r => r.TargetColumn.ColumnIndex).ToHashSet();
 
+        var activeCovers = new HashSet<string>();
+        if (DefaultCoverGSC) activeCovers.Add("GSC");
+        if (DefaultCoverGL) activeCovers.Add("GL");
+        if (DefaultCoverTPD) activeCovers.Add("TPD");
+        if (DefaultCoverTrauma) activeCovers.Add("Trauma");
+        if (DefaultCoverGLTPD) activeCovers.Add("GLTPD");
+        foreach (var cov in CategoryOverrides)
+        {
+            if (cov.IsEnabled && cov.IsCategoryNameValid)
+            {
+                if (cov.Gsc) activeCovers.Add("GSC");
+                if (cov.Gl) activeCovers.Add("GL");
+                if (cov.Tpd) activeCovers.Add("TPD");
+                if (cov.Trauma) activeCovers.Add("Trauma");
+                if (cov.GlTpd) activeCovers.Add("GLTPD");
+            }
+        }
+
         var result = _matcher.Match(
             _sourceHeaders, _targetHeaders,
-            new MatcherOptions(ConfidenceThreshold: value),
+            new MatcherOptions(ConfidenceThreshold: 90, FuzzyEnabled: value, ActiveCovers: activeCovers),
             s => _sourceData.ColumnIsEmpty(s.ColumnIndex, _matchedSrcHeaderRow));
 
         Rows.Clear();
@@ -588,15 +784,23 @@ public sealed partial class MainViewModel : ObservableObject
         {
             var row = new MappingRowViewModel(m);
             if (manual.TryGetValue(m.TargetColumn.ColumnIndex, out var overridden))
+            {
                 row.SetLink(overridden, SourceIsEmpty, SamplesFor);
+            }
             else if (row.LinkedSource is { } src)
+            {
                 row.SetLink(src, SourceIsEmpty, SamplesFor);
+            }
+            else
+            {
+                ParameterAutoFiller.AutoFill(row, this, _aliases);
+            }
             row.IsHidden = hidden.Contains(m.TargetColumn.ColumnIndex);
             Rows.Add(row);
         }
-        ResetHistory();   // a fresh auto-apply is a new baseline; don't undo across it
+        ResetHistory();
         AfterMappingEdit();
-        Status = $"Re-applied threshold {value}. {LinkedCount} column(s) linked.";
+        Status = $"Re-applied match rules (Fuzzy: {(value ? "On (90%)" : "Off")}). {LinkedCount} column(s) linked.";
     }
 
     // ====================================================================== //
@@ -641,10 +845,34 @@ public sealed partial class MainViewModel : ObservableObject
             string outputDir = OutputDirectory;
             var mode = WriteMode;
 
+            var defaultCovers = new HashSet<string>();
+            if (DefaultCoverGSC) defaultCovers.Add("GSC");
+            if (DefaultCoverGL) defaultCovers.Add("GL");
+            if (DefaultCoverTPD) defaultCovers.Add("TPD");
+            if (DefaultCoverTrauma) defaultCovers.Add("Trauma");
+            if (DefaultCoverGLTPD) defaultCovers.Add("GLTPD");
+
+            var categoryCovers = new Dictionary<string, IReadOnlySet<string>>();
+            foreach (var cov in CategoryOverrides)
+            {
+                if (cov.IsEnabled)
+                {
+                    var set = new HashSet<string>();
+                    if (cov.Gsc) set.Add("GSC");
+                    if (cov.Gl) set.Add("GL");
+                    if (cov.Tpd) set.Add("TPD");
+                    if (cov.Trauma) set.Add("Trauma");
+                    if (cov.GlTpd) set.Add("GLTPD");
+                    categoryCovers[cov.CategoryName] = set;
+                }
+            }
+
+            var insParams = new InsuranceParams(defaultCovers, categoryCovers);
+
             var writeResult = await Task.Run(() => _writer.Write(new WriteRequest(
                 sourcePath, _matchedSourceSheet, _matchedSrcHeaderRow,
                 targetPath, _matchedTargetSheet, _matchedTgtHeaderRow,
-                columnMap, outputDir, mode, constantColumns)));
+                columnMap, outputDir, mode, constantColumns, insParams)));
 
             string warnings = writeResult.Warnings.Count > 0
                 ? "\nWarnings:\n  • " + string.Join("\n  • ", writeResult.Warnings)

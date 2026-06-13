@@ -50,6 +50,12 @@ public class ShippedSynonymsTests
     [InlineData("DOB", "D.O.B.")]
     [InlineData("Salary", "income")]
     [InlineData("Email", "Electronic Mail")]
+    [InlineData("FirstName", "Given Name")]
+    [InlineData("LastName", "Surname")]
+    [InlineData("FullName", "Employee Name")]
+    [InlineData("MobilePhone", "Cell")]
+    [InlineData("Department", "Business Unit")]
+    [InlineData("ManagerName", "Reports To")]
     public void KnownPairs_AreAliases(string a, string b)
     {
         Assert.True(Load().AreAliases(a, b), $"expected '{a}' ~ '{b}'");

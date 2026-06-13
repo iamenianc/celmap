@@ -114,6 +114,7 @@ public partial class MainWindow : Window
     {
         e.Handled = true;
         var row = Row(sender);
+        if (row is null || row.IsLocked) return;
 
         if (e.ClickCount == 2)
         {
@@ -134,14 +135,16 @@ public partial class MainWindow : Window
     private void ClickTimer_Tick(object? sender, EventArgs e)
     {
         _clickTimer?.Stop();
-        if (_pendingOpenRow is { } row) ViewModel.OpenPicker(row);
+        if (_pendingOpenRow is { } row && !row.IsLocked) ViewModel.OpenPicker(row);
         _pendingOpenRow = null;
     }
 
     // The blank body keeps a plain single-click → open (no clear semantics needed when empty).
     private void TargetBody_Click(object sender, MouseButtonEventArgs e)
     {
-        ViewModel.OpenPicker(Row(sender));
+        var row = Row(sender);
+        if (row is not null && !row.IsLocked)
+            ViewModel.OpenPicker(row);
         e.Handled = true;
     }
 

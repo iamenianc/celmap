@@ -74,9 +74,37 @@ public sealed partial class MappingRowViewModel : ObservableObject
     [ObservableProperty]
     private bool _isHidden;
 
-    /// <summary>True when the linked source column has no data below its header (PRD §2.3 warning).</summary>
+    /// <summary>True if this target column has no data below its header (PRD §2.3 warning).</summary>
     [ObservableProperty]
     private bool _linkedSourceIsEmpty;
+
+    public bool IsLocked
+    {
+        get
+        {
+            string label = TargetLabel;
+            return label.Equals("GroupID", StringComparison.OrdinalIgnoreCase) ||
+                   label.Equals("Group ID", StringComparison.OrdinalIgnoreCase) ||
+                   label.Equals("InsurerID", StringComparison.OrdinalIgnoreCase) ||
+                   label.Equals("Insurer ID", StringComparison.OrdinalIgnoreCase) ||
+                   label.Equals("Insurer", StringComparison.OrdinalIgnoreCase) ||
+                   label.Equals("ReviewDate", StringComparison.OrdinalIgnoreCase) ||
+                   label.Equals("Review Date", StringComparison.OrdinalIgnoreCase) ||
+                   label.Equals("Review Start Date", StringComparison.OrdinalIgnoreCase) ||
+                   label.Equals("Review Start", StringComparison.OrdinalIgnoreCase) ||
+                   label.Equals("ReviewStart", StringComparison.OrdinalIgnoreCase) ||
+                   label.Equals("Review End", StringComparison.OrdinalIgnoreCase) ||
+                   label.Equals("Review End Date", StringComparison.OrdinalIgnoreCase) ||
+                   label.Equals("Cover End Date", StringComparison.OrdinalIgnoreCase) ||
+                   label.Equals("Coverage End Date", StringComparison.OrdinalIgnoreCase) ||
+                   label.Equals("GSC", StringComparison.OrdinalIgnoreCase) ||
+                   label.Equals("GSC Cover", StringComparison.OrdinalIgnoreCase) ||
+                   label.Equals("GL", StringComparison.OrdinalIgnoreCase) ||
+                   label.Equals("GL Cover", StringComparison.OrdinalIgnoreCase) ||
+                   label.Equals("TPD", StringComparison.OrdinalIgnoreCase) ||
+                   label.Equals("TPD Cover", StringComparison.OrdinalIgnoreCase);
+        }
+    }
 
     public MappingRowViewModel(TargetColumnMapping original)
     {

@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+
 namespace CelMap.Core;
 
 /// <summary>Where written data lands relative to existing target rows (PRD §2.5).</summary>
@@ -8,6 +10,11 @@ public enum WriteMode
     /// <summary>Write from the first empty row after the last used row, leaving existing data in place.</summary>
     Append
 }
+
+public record InsuranceParams(
+    IReadOnlySet<string> DefaultCovers,
+    IReadOnlyDictionary<string, IReadOnlySet<string>> CategoryCovers
+);
 
 public record WriteRequest(
     string SourceFilePath,
@@ -22,7 +29,8 @@ public record WriteRequest(
     WriteMode Mode = WriteMode.Overwrite,
     // target col index (0-based) -> literal value to write into EVERY data row of that column.
     // Independent of ColumnMap: a target column can be filled from a source OR a constant.
-    IReadOnlyDictionary<int, string>? ConstantColumns = null
+    IReadOnlyDictionary<int, string>? ConstantColumns = null,
+    InsuranceParams? InsuranceParams = null
 );
 
 public record WriteResult(
@@ -35,3 +43,4 @@ public interface ITargetWriter
 {
     WriteResult Write(WriteRequest request);
 }
+

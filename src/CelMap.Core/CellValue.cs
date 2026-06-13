@@ -19,5 +19,10 @@ public sealed class CellValue
 
     public bool IsEmpty => Type == CellValueType.Empty;
 
-    public override string ToString() => Raw?.ToString() ?? string.Empty;
+    public override string ToString()
+    {
+        if (Type == CellValueType.DateTime && Raw is DateTime dt)
+            return dt.ToString("yyyy-MM-dd");
+        return Raw?.ToString() ?? string.Empty;
+    }
 }

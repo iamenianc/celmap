@@ -284,4 +284,98 @@ public class TargetWriterTests : IDisposable
         Assert.StartsWith(outputDir, result.OutputFilePath);
         Assert.True(File.Exists(result.OutputFilePath));
     }
+
+    [Fact]
+    public void Write_DynamicCategoryCovers_EvaluatesAndWritesCorrectFlags()
+    {
+        // Source data has members in category 1, 2, A, B
+        var sourcePath = CreateWorkbook(wb =>
+        {
+            var ws = wb.AddWorksheet("Data");
+            ws.Cell(1, 1).Value = "Name";
+            ws.Cell(1, 2).Value = "Category";
+            
+            ws.Cell(2, 1).Value = "Alice";
+            ws.Cell(2, 2).Value = "1";
+
+            ws.Cell(3, 1).Value = "Bob";
+            ws.Cell(3, 2).Value = "2";
+
+            ws.Cell(4, 1).Value = "Charlie";
+            ws.Cell(4, 2).Value = "a"; // test case insensitivity
+
+            ws.Cell(5, 1).Value = "Dave";
+            ws.Cell(5, 2).Value = "B";
+        });
+
+        // Target template has category, name, and cover flag columns
+        var targetPath = CreateWorkbook(wb =>
+        {
+            var ws = wb.AddWorksheet("Report");
+            ws.Cell(1, 1).Value = "Name";
+            ws.Cell(1, 2).Value = "Category No";
+            ws.Cell(1, 3).Value = "GSC";
+            ws.Cell(1, 4).Value = "GL";
+            ws.Cell(1, 5).Value = "TPD";
+        });
+
+        var outputDir = Path.Combine(_tempDir, "output");
+        var writer = new TargetWriter(new WorkbookReader());
+
+        // Setup parameters
+        var defaultCovers = new HashSet<string> { "GL" };
+        var categoryCovers = new Dictionary<string, IReadOnlySet<string>>
+        {
+            ["1"] = new HashSet<string> { "GSC", "GL" },
+            ["A"] = new HashSet<string> { "GL", "TPD" }
+        };
+        var insParams = new InsuranceParams(defaultCovers, categoryCovers);
+
+        var request = new WriteRequest(
+            sourcePath, "Data", 0,
+            targetPath, "Report", 0,
+            new Dictionary<int, int> { [0] = 0, [1] = 1 }, // Map Name and Category
+            outputDir,
+            ConstantColumns: new Dictionary<int, string>
+            {
+                [2] = "[Dynamic GSC]",
+                [3] = "[Dynamic GL]",
+                [4] = "[Dynamic TPD]"
+            },
+            InsuranceParams: insParams
+        );
+
+        var result = writer.Write(request);
+
+        using var wb = new XLWorkbook(result.OutputFilePath);
+        var ws = wb.Worksheet("Report");
+
+        // Alice (Category 1) -> GSC="Y", GL="Y", TPD="N"
+        Assert.Equal("Alice", ws.Cell(2, 1).GetString());
+        Assert.Equal("1", ws.Cell(2, 2).GetString());
+        Assert.Equal("Y", ws.Cell(2, 3).GetString());
+        Assert.Equal("Y", ws.Cell(2, 4).GetString());
+        Assert.Equal("N", ws.Cell(2, 5).GetString());
+
+        // Bob (Category 2) -> defaults to GL only -> GSC="N", GL="Y", TPD="N"
+        Assert.Equal("Bob", ws.Cell(3, 1).GetString());
+        Assert.Equal("2", ws.Cell(3, 2).GetString());
+        Assert.Equal("N", ws.Cell(3, 3).GetString());
+        Assert.Equal("Y", ws.Cell(3, 4).GetString());
+        Assert.Equal("N", ws.Cell(3, 5).GetString());
+
+        // Charlie (Category 'a') -> GSC="N", GL="Y", TPD="Y" (case-insensitive lookup of override 'A')
+        Assert.Equal("Charlie", ws.Cell(4, 1).GetString());
+        Assert.Equal("a", ws.Cell(4, 2).GetString());
+        Assert.Equal("N", ws.Cell(4, 3).GetString());
+        Assert.Equal("Y", ws.Cell(4, 4).GetString());
+        Assert.Equal("Y", ws.Cell(4, 5).GetString());
+
+        // Dave (Category 'B') -> defaults to GL only -> GSC="N", GL="Y", TPD="N"
+        Assert.Equal("Dave", ws.Cell(5, 1).GetString());
+        Assert.Equal("B", ws.Cell(5, 2).GetString());
+        Assert.Equal("N", ws.Cell(5, 3).GetString());
+        Assert.Equal("Y", ws.Cell(5, 4).GetString());
+        Assert.Equal("N", ws.Cell(5, 5).GetString());
+    }
 }

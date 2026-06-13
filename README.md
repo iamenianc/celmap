@@ -76,6 +76,10 @@ the app surfaces this as a friendly "close it in Excel and retry" message instea
 `synonyms.json` is generated from `UAT Files/generictable.xlsx` by the converter in
 `test-fixtures/CreateFixtures` (run it after editing the table).
 
+## Development Guidelines
+
+- **No Node.js / npm Dependencies**: This project is a pure .NET solution (C# / WPF) with native Windows utilities (PowerShell). Do not introduce Node.js, npm, or Python dependencies to any part of the codebase or helper tools.
+
 ## Roadmap — v1.5 priorities (hypothetical)
 
 - **Legacy `.xls` support** — read older binary workbooks out of scope for v1.

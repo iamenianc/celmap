@@ -349,4 +349,31 @@ public class ColumnMatcherTests
 
         Assert.NotEqual(MatchStatus.Auto, result.Mappings[0].Status);
     }
+
+    [Fact]
+    public void Match_CategoryColumn_ResolvesBasedOnActiveCovers()
+    {
+        var matcher = new ColumnMatcher(AliasRules.Empty, QualifiedRules.LoadDefault());
+        
+        // Scenario 1: GSC is active -> maps to GSCCategoryNo
+        var optionsGsc = new MatcherOptions(FuzzyEnabled: true, ActiveCovers: new HashSet<string> { "GSC", "GL", "TPD" });
+        var resGsc = matcher.Match(Headers("CategoryNo"), Headers("GSCCategoryNo", "GLCategoryNo", "TPDCategoryNo"), optionsGsc);
+        Assert.Equal(MatchStatus.Auto, resGsc.Mappings[0].Status); // GSCCategoryNo mapped
+        Assert.Equal(MatchStatus.NeedsReview, resGsc.Mappings[1].Status); // GLCategoryNo needs review
+        Assert.Equal(MatchStatus.NeedsReview, resGsc.Mappings[2].Status); // TPDCategoryNo needs review
+
+        // Scenario 2: GL is active only -> maps to GLCategoryNo
+        var optionsGl = new MatcherOptions(FuzzyEnabled: true, ActiveCovers: new HashSet<string> { "GL" });
+        var resGl = matcher.Match(Headers("CategoryNo"), Headers("GSCCategoryNo", "GLCategoryNo", "TPDCategoryNo"), optionsGl);
+        Assert.Equal(MatchStatus.NeedsReview, resGl.Mappings[0].Status); // GSCCategoryNo needs review
+        Assert.Equal(MatchStatus.Auto, resGl.Mappings[1].Status); // GLCategoryNo mapped
+        Assert.Equal(MatchStatus.NeedsReview, resGl.Mappings[2].Status); // TPDCategoryNo needs review
+
+        // Scenario 3: GL and TPD both active (without GSC) -> ambiguous/unmapped -> needs review
+        var optionsBoth = new MatcherOptions(FuzzyEnabled: true, ActiveCovers: new HashSet<string> { "GL", "TPD" });
+        var resBoth = matcher.Match(Headers("CategoryNo"), Headers("GSCCategoryNo", "GLCategoryNo", "TPDCategoryNo"), optionsBoth);
+        Assert.Equal(MatchStatus.NeedsReview, resBoth.Mappings[0].Status); // GSCCategoryNo needs review
+        Assert.Equal(MatchStatus.NeedsReview, resBoth.Mappings[1].Status); // GLCategoryNo needs review
+        Assert.Equal(MatchStatus.NeedsReview, resBoth.Mappings[2].Status); // TPDCategoryNo needs review
+    }
 }

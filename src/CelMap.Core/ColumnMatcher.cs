@@ -41,7 +41,7 @@ public sealed class ColumnMatcher : IColumnMatcher
             // logic that overrides alias/fuzzy — handle them first.
             if (_qualified.GovernsTarget(target.Label))
             {
-                mappings.Add(ClassifyQualified(target, named, sourceColumnIsEmpty));
+                mappings.Add(ClassifyQualified(target, named, options, sourceColumnIsEmpty));
                 continue;
             }
 
@@ -71,10 +71,10 @@ public sealed class ColumnMatcher : IColumnMatcher
 
         var best = candidates[0];
 
-        // Strict-group gate: if this target belongs to a strict synonym group, only an
-        // exact or alias match may auto-apply. With no such hit, fuzzy is suppressed
-        // entirely — the column is left Unmatched (manual-only), candidates hidden.
-        if (_aliases.IsStrict(target.Label) && best.Kind == MatchKind.Fuzzy)
+        // Strict-group gate or fuzzy disabled gate: if this target belongs to a strict
+        // synonym group OR fuzzy matching is disabled, and no exact/alias match was found,
+        // the fuzzy match is suppressed and the column is left Unmatched.
+        if ((_aliases.IsStrict(target.Label) || !options.FuzzyEnabled) && best.Kind == MatchKind.Fuzzy)
             return new TargetColumnMapping(
                 target, null, 0, MatchStatus.Unmatched,
                 Array.Empty<MatchCandidate>(), false);
@@ -107,8 +107,55 @@ public sealed class ColumnMatcher : IColumnMatcher
     private TargetColumnMapping ClassifyQualified(
         HeaderColumn target,
         List<HeaderColumn> sources,
+        MatcherOptions options,
         Func<HeaderColumn, bool>? sourceColumnIsEmpty)
     {
+        // Category mapping resolution depending on parameter arguments:
+        // GSCCategoryNo, GLCategoryNo, TPDCategoryNo
+        bool isGscCat = string.Equals(target.Label, "GSCCategoryNo", StringComparison.OrdinalIgnoreCase);
+        bool isGlCat = string.Equals(target.Label, "GLCategoryNo", StringComparison.OrdinalIgnoreCase);
+        bool isTpdCat = string.Equals(target.Label, "TPDCategoryNo", StringComparison.OrdinalIgnoreCase);
+
+        if (isGscCat || isGlCat || isTpdCat)
+        {
+            var conceptOnlySources = sources
+                .Where(s => _qualified.IsAmbiguousConceptOnly(target.Label, s.Label))
+                .ToList();
+
+            if (conceptOnlySources.Count > 0)
+            {
+                var active = options.ActiveCovers ?? new HashSet<string>();
+                bool gscActive = active.Contains("GSC");
+                bool glActive = active.Contains("GL");
+                bool tpdActive = active.Contains("TPD");
+
+                bool shouldMapToThisTarget = false;
+                if (gscActive)
+                {
+                    shouldMapToThisTarget = isGscCat;
+                }
+                else
+                {
+                    if (glActive && !tpdActive)
+                    {
+                        shouldMapToThisTarget = isGlCat;
+                    }
+                    else if (tpdActive && !glActive)
+                    {
+                        shouldMapToThisTarget = isTpdCat;
+                    }
+                }
+
+                if (shouldMapToThisTarget)
+                {
+                    var hitSource = conceptOnlySources[0];
+                    bool empty = sourceColumnIsEmpty?.Invoke(hitSource) ?? false;
+                    var candidates = new List<MatchCandidate> { new MatchCandidate(hitSource, 100, MatchKind.Qualified) };
+                    return new TargetColumnMapping(target, hitSource, 100, MatchStatus.Auto, candidates, empty);
+                }
+            }
+        }
+
         var qualifiers = sources
             .Where(s => _qualified.Qualifies(target.Label, s.Label))
             .Select(s => new MatchCandidate(s, 100, MatchKind.Qualified))

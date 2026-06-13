@@ -1,4 +1,8 @@
 using ClosedXML.Excel;
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
 
 namespace CelMap.Core;
 
@@ -58,8 +62,47 @@ public sealed class TargetWriter : ITargetWriter
         int targetFirstCol = GetFirstUsedCol(req.TargetFilePath, req.TargetSheetName);
 
         // Resolve each typed constant once: text, unless it's a YYYY-MM-DD date.
+        // Filter out dynamic cover columns from the static constants.
         var constants = (req.ConstantColumns ?? new Dictionary<int, string>())
+            .Where(kv => !kv.Value.StartsWith("[Dynamic "))
             .ToDictionary(kv => kv.Key, kv => ParseConstant(kv.Value));
+
+        // Find which columns are dynamic cover columns
+        var dynamicCoverCols = (req.ConstantColumns ?? new Dictionary<int, string>())
+            .Where(kv => kv.Value.StartsWith("[Dynamic "))
+            .ToDictionary(kv => kv.Key, kv => kv.Value.Replace("[Dynamic ", "").Replace("]", "").Trim());
+
+        // If we have dynamic cover columns, let's find the category column index
+        int? targetCategoryColIdx = null;
+        int? sourceCategoryColIdx = null;
+        string? constantCategory = null;
+
+        if (dynamicCoverCols.Count > 0 && req.InsuranceParams != null)
+        {
+            var targetSheetData = _reader.ReadSheet(req.TargetFilePath, req.TargetSheetName);
+            var targetHeaders = HeaderExtractor.Extract(targetSheetData, req.TargetHeaderRow);
+            var categorySynonyms = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+            {
+                "GSCCategoryNo", "Category No", "CategoryNo", "Cat No", "Category Number", "Cat Number", "Category Num", "Category"
+            };
+            var catHeader = targetHeaders.FirstOrDefault(h => categorySynonyms.Contains(h.Label));
+            if (catHeader != null)
+            {
+                targetCategoryColIdx = catHeader.ColumnIndex;
+                foreach (var kv in req.ColumnMap)
+                {
+                    if (kv.Value == targetCategoryColIdx.Value)
+                    {
+                        sourceCategoryColIdx = kv.Key;
+                        break;
+                    }
+                }
+                if (req.ConstantColumns != null && req.ConstantColumns.TryGetValue(targetCategoryColIdx.Value, out var constCat))
+                {
+                    constantCategory = constCat;
+                }
+            }
+        }
 
         int rowsWritten = 0;
         for (int dataRow = 0; dataRow < dataRowCount; dataRow++)
@@ -81,6 +124,40 @@ public sealed class TargetWriter : ITargetWriter
                 int tgtSheetCol = targetFirstCol + tgtColIdx;
                 WriteVerbatim(ws.Cell(targetSheetRow, tgtSheetCol), value);
             }
+
+            // Evaluate dynamic cover types if needed
+            if (dynamicCoverCols.Count > 0 && req.InsuranceParams is { } insParams)
+            {
+                string category = "";
+                if (sourceCategoryColIdx.HasValue)
+                {
+                    category = source.GetCell(sourceRowIdx, sourceCategoryColIdx.Value).ToString()?.Trim() ?? "";
+                }
+                else if (constantCategory != null)
+                {
+                    category = constantCategory.Trim();
+                }
+
+                // Check overrides for this category
+                IReadOnlySet<string> activeCovers = insParams.DefaultCovers;
+                foreach (var kv in insParams.CategoryCovers)
+                {
+                    if (string.Equals(kv.Key, category, StringComparison.OrdinalIgnoreCase))
+                    {
+                        activeCovers = kv.Value;
+                        break;
+                    }
+                }
+
+                foreach (var (tgtColIdx, coverType) in dynamicCoverCols)
+                {
+                    int tgtSheetCol = targetFirstCol + tgtColIdx;
+                    bool isCovered = activeCovers.Contains(coverType);
+                    var cell = ws.Cell(targetSheetRow, tgtSheetCol);
+                    cell.SetValue(isCovered ? "Y" : "N");
+                }
+            }
+
             rowsWritten++;
         }
 
