@@ -41,6 +41,7 @@ public sealed partial class MappingRowViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(BodyState))]
     [NotifyPropertyChangedFor(nameof(StatusText))]
     [NotifyPropertyChangedFor(nameof(IsManualOverride))]
+    [NotifyPropertyChangedFor(nameof(IsFuzzyAuto))]
     private HeaderColumn? _linkedSource;
 
     /// <summary>A typed literal that fills EVERY data row of this target column, instead of a
@@ -67,6 +68,7 @@ public sealed partial class MappingRowViewModel : ObservableObject
     /// <summary>True when the user has changed the link away from the engine's auto pick.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(StatusText))]
+    [NotifyPropertyChangedFor(nameof(IsFuzzyAuto))]
     private bool _isManualOverride;
 
     /// <summary>Hidden columns collapse to a thin restore strip and are excluded from the
@@ -168,6 +170,12 @@ public sealed partial class MappingRowViewModel : ObservableObject
             };
         }
     }
+
+    /// <summary>True while this slot still holds the engine's fuzzy auto-pick — the matches
+    /// worth a human glance, tinted amber in the grid.</summary>
+    public bool IsFuzzyAuto =>
+        IsLinked && !IsManualOverride
+        && Original.Status == MatchStatus.Auto && Kind == MatchKind.Fuzzy;
 
     /// <summary>Strict targets are deliberately left unmatched (fuzzy suppressed) — flag, don't hide.</summary>
     public bool IsStrict => Original is { Status: MatchStatus.Unmatched, Score: 0, Candidates.Count: 0 };

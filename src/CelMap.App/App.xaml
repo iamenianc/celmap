@@ -8,8 +8,14 @@
         <Color x:Key="AccentColor">#2D6CDF</Color>
         <SolidColorBrush x:Key="Accent" Color="{StaticResource AccentColor}" />
         <SolidColorBrush x:Key="AccentDark" Color="#1E51B0" />
-        <SolidColorBrush x:Key="PanelBg" Color="#FFFFFF" />
+        <!-- Warm near-white instead of pure #FFFFFF — easier on the eyes over long sessions. -->
+        <SolidColorBrush x:Key="PanelBg" Color="#FAFAF8" />
         <SolidColorBrush x:Key="WindowBg" Color="#EEF1F6" />
+        <!-- Whisper-of-blue tint for the TARGET half of the mapping screen, so the eye always
+             knows which grid it's in. -->
+        <SolidColorBrush x:Key="TargetPanelBg" Color="#F4F8FD" />
+        <!-- Alternate-row band for the Excel-like grids. -->
+        <SolidColorBrush x:Key="ZebraBg" Color="#F3F6FA" />
         <SolidColorBrush x:Key="Hairline" Color="#D7DCE5" />
         <SolidColorBrush x:Key="MutedText" Color="#6B7280" />
         <SolidColorBrush x:Key="InkText" Color="#1F2733" />
@@ -119,23 +125,40 @@
             <Setter Property="Padding" Value="6,4" />
         </Style>
 
-        <!-- Excel-like grid cells — readable font, single line, truncated with a tooltip -->
+        <!-- Excel-like grid cells — readable font, single line, truncated with a tooltip.
+             Compact: tighter padding buys ~4 extra visible rows per grid. -->
         <Style x:Key="GridDataCell" TargetType="TextBlock">
-            <Setter Property="FontSize" Value="13" />
+            <Setter Property="FontSize" Value="12" />
             <Setter Property="Foreground" Value="{StaticResource InkText}" />
-            <Setter Property="Padding" Value="6,3" />
-            <Setter Property="Height" Value="24" />
+            <Setter Property="Padding" Value="6,2" />
+            <Setter Property="Height" Value="20" />
             <Setter Property="VerticalAlignment" Value="Center" />
             <Setter Property="TextTrimming" Value="CharacterEllipsis" />
         </Style>
 
-        <!-- Header cell at the top of a grid column -->
+        <!-- Wrapper for one data cell in the Excel-like grids: hairline row separator plus
+             zebra banding so the eye can track a record across many columns. Requires
+             AlternationCount=2 on the owning ItemsControl. -->
+        <Style x:Key="ZebraRowCell" TargetType="Border">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="#EFF2F7" />
+            <Setter Property="BorderThickness" Value="0,0,0,1" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding Path=(ItemsControl.AlternationIndex),
+                                       RelativeSource={RelativeSource AncestorType=ContentPresenter}}" Value="1">
+                    <Setter Property="Background" Value="{StaticResource ZebraBg}" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <!-- Header cell at the top of a grid column — tall enough for two wrapped lines so
+             long insurance column names stay readable instead of truncating. -->
         <Style x:Key="GridHeaderCell" TargetType="Border">
             <Setter Property="Background" Value="{StaticResource HeaderCellBg}" />
             <Setter Property="BorderBrush" Value="{StaticResource GridLine}" />
             <Setter Property="BorderThickness" Value="0,0,1,1" />
-            <Setter Property="Padding" Value="6,5" />
-            <Setter Property="Height" Value="34" />
+            <Setter Property="Padding" Value="6,4" />
+            <Setter Property="Height" Value="40" />
         </Style>
 
         <!-- A source column option in the inline picker list — a rounded chip so options

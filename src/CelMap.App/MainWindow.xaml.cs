@@ -179,6 +179,32 @@ public partial class MainWindow : Window
         ViewModel.SetConstantValue(tb.DataContext as MappingRowViewModel, tb.Text);
     }
 
+    // Type-ahead filter above the picker's source list. Each picker filters only its own
+    // list (the sibling ItemsControl), so two open pickers never fight over one view.
+    private void PickerFilter_TextChanged(object sender, TextChangedEventArgs e)
+    {
+        if (sender is not TextBox tb || VisualTreeHelper.GetParent(tb) is not DependencyObject panel) return;
+        if (FindDescendant<ItemsControl>(panel) is not { } list) return;
+
+        string query = tb.Text.Trim();
+        list.ItemsSource = string.IsNullOrEmpty(query)
+            ? ViewModel.PickableSourceColumns.ToList()
+            : ViewModel.PickableSourceColumns
+                .Where(s => s.Label.Contains(query, StringComparison.OrdinalIgnoreCase))
+                .ToList();
+    }
+
+    private static T? FindDescendant<T>(DependencyObject root) where T : DependencyObject
+    {
+        for (int i = 0; i < VisualTreeHelper.GetChildrenCount(root); i++)
+        {
+            var child = VisualTreeHelper.GetChild(root, i);
+            if (child is T match) return match;
+            if (FindDescendant<T>(child) is { } nested) return nested;
+        }
+        return null;
+    }
+
     // Click a source option in the inline picker → map this slot to that source.
     // The option's own DataContext is the SourceColumnViewModel; the owning target row
     // is found by walking up the visual tree (the row VM is the column's DataContext).

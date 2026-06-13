@@ -88,6 +88,7 @@ public sealed partial class MainViewModel : ObservableObject
         if (e.PropertyName == nameof(CategoryCoverOverride.CategoryName) || e.PropertyName == nameof(CategoryCoverOverride.IsEnabled))
         {
             ContinueToSetupCommand.NotifyCanExecuteChanged();
+            OnPropertyChanged(nameof(IsParametersValid));
         }
 
         if (e.PropertyName == nameof(CategoryCoverOverride.CategoryName) && sender is CategoryCoverOverride item)
@@ -116,6 +117,25 @@ public sealed partial class MainViewModel : ObservableObject
     }
 
     // ====================================================================== //
+    //  Display density (all screens)                                         //
+    // ====================================================================== //
+
+    public IReadOnlyList<string> DensityOptions { get; } = new[] { "Large", "Comfortable", "Compact" };
+
+    /// <summary>Three-tier UI scale for different eyesight: the whole window content scales
+    /// through a LayoutTransform bound to <see cref="UiScale"/>.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(UiScale))]
+    private string _uiDensity = "Comfortable";
+
+    public double UiScale => UiDensity switch
+    {
+        "Large" => 1.2,
+        "Compact" => 0.85,
+        _ => 1.0
+    };
+
+    // ====================================================================== //
     //  Insurance Parameters (Screen 0)                                       //
     // ====================================================================== //
 
@@ -127,18 +147,22 @@ public sealed partial class MainViewModel : ObservableObject
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(ContinueToSetupCommand))]
+    [NotifyPropertyChangedFor(nameof(IsParametersValid))]
     private string _groupIdText = "";
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(ContinueToSetupCommand))]
+    [NotifyPropertyChangedFor(nameof(IsParametersValid))]
     private string _insurerIdText = "1";
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(ContinueToSetupCommand))]
+    [NotifyPropertyChangedFor(nameof(IsParametersValid))]
     private DateTime? _reviewStart = DateTime.Today;
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(ContinueToSetupCommand))]
+    [NotifyPropertyChangedFor(nameof(IsParametersValid))]
     private DateTime? _reviewEnd = DateTime.Today.AddYears(1).AddDays(-1);
 
     [ObservableProperty]
@@ -164,6 +188,10 @@ public sealed partial class MainViewModel : ObservableObject
         && ReviewStart.HasValue
         && ReviewEnd.HasValue
         && CategoryOverrides.All(c => !c.IsEnabled || c.IsCategoryNameValid);
+
+    /// <summary>Bindable mirror of the Continue gate — ICommand.CanExecute is a method, so the
+    /// status line can't bind to it directly.</summary>
+    public bool IsParametersValid => CanContinueToSetup;
 
     [RelayCommand(CanExecute = nameof(CanContinueToSetup))]
     private void ContinueToSetup()
@@ -305,6 +333,13 @@ public sealed partial class MainViewModel : ObservableObject
     public int SourceUnmappedCount => SourceColumns.Count(s => !s.IsLinked);
     public int TargetMappedCount => Rows.Count(r => r.IsFilled && !r.IsHidden);
     public int TargetUnmappedCount => Rows.Count(r => !r.IsFilled && !r.IsHidden);
+
+    // Tier tally of the auto-applied links (manual overrides excluded) — drives the
+    // match-quality chips in the status footer.
+    public int ExactCount => Rows.Count(r => r.IsLinked && !r.IsManualOverride && r.Kind == MatchKind.Exact);
+    public int AliasCount => Rows.Count(r => r.IsLinked && !r.IsManualOverride && r.Kind == MatchKind.Alias);
+    public int QualifiedCount => Rows.Count(r => r.IsLinked && !r.IsManualOverride && r.Kind == MatchKind.Qualified);
+    public int FuzzyCount => Rows.Count(r => r.IsLinked && !r.IsManualOverride && r.Kind == MatchKind.Fuzzy);
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(VisibleSourceColumns))]
@@ -498,17 +533,14 @@ public sealed partial class MainViewModel : ObservableObject
 
             PopulateGrid(result);
 
+            // Same definition the Target pill uses (filled = linked source OR parameter
+            // constant), so the footer and the pill always agree.
             int auto = Rows.Count(r => r.IsLinked);
-            // Tier tally of the auto-applied rows — makes it visible whether alias/exact
-            // (the synonyms rules) actually fired, vs everything coming through as fuzzy.
-            int exact = Rows.Count(r => r.IsLinked && r.Kind == MatchKind.Exact);
-            int alias = Rows.Count(r => r.IsLinked && r.Kind == MatchKind.Alias);
-            int qual  = Rows.Count(r => r.IsLinked && r.Kind == MatchKind.Qualified);
-            int fuzzy = Rows.Count(r => r.IsLinked && r.Kind == MatchKind.Fuzzy);
-            Status = $"Auto-mapped {auto} of {Rows.Count} target column(s) "
-                   + $"[exact {exact} · alias {alias} · qualified {qual} · fuzzy {fuzzy}; "
-                   + $"{_aliases.Groups.Count} synonym groups loaded]. "
-                   + "Check the highlighted ones, map the rest, then Execute.";
+            int paramFilled = Rows.Count(r => r.IsFilled && !r.IsLinked);
+            Status = $"Filled {auto + paramFilled} of {Rows.Count} target columns — "
+                   + $"{auto} auto-matched, {paramFilled} from parameters "
+                   + $"({_aliases.Groups.Count} synonym groups loaded). "
+                   + "Review the amber fuzzy matches, map the rest, then Execute.";
             HasMatched = true;
             ResetHistory();
             IsOnParameters = false;
@@ -643,6 +675,10 @@ public sealed partial class MainViewModel : ObservableObject
         OnPropertyChanged(nameof(SourceUnmappedCount));
         OnPropertyChanged(nameof(TargetMappedCount));
         OnPropertyChanged(nameof(TargetUnmappedCount));
+        OnPropertyChanged(nameof(ExactCount));
+        OnPropertyChanged(nameof(AliasCount));
+        OnPropertyChanged(nameof(QualifiedCount));
+        OnPropertyChanged(nameof(FuzzyCount));
         OnPropertyChanged(nameof(VisibleSourceColumns));
         OnPropertyChanged(nameof(PickableSourceColumns));
     }

@@ -17,6 +17,12 @@
     </Window.InputBindings>
 
     <Grid>
+        <!-- Display density: the entire UI scales from one transform, so every element
+             (fonts, paddings, grids) stays proportionate across the three tiers. -->
+        <Grid.LayoutTransform>
+            <ScaleTransform ScaleX="{Binding UiScale}" ScaleY="{Binding UiScale}" />
+        </Grid.LayoutTransform>
+
         <!-- ============================================================== -->
         <!--  SCREEN 0 — Parameters Setup                                   -->
         <!-- ============================================================== -->
@@ -29,12 +35,25 @@
             </Grid.RowDefinitions>
 
             <!-- Header -->
-            <StackPanel Grid.Row="0" Margin="0,0,0,14">
-                <TextBlock Text="Insurance Member Data Parameters" FontSize="20" FontWeight="SemiBold"
-                           Foreground="{StaticResource InkText}" />
-                <TextBlock Text="Specify global parameters and cover rules to auto-fill member records."
-                           Foreground="{StaticResource MutedText}" FontSize="12" Margin="0,2,0,0" />
-            </StackPanel>
+            <Grid Grid.Row="0" Margin="0,0,0,14">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <StackPanel Grid.Column="0">
+                    <TextBlock Text="Insurance Member Data Parameters" FontSize="20" FontWeight="SemiBold"
+                               Foreground="{StaticResource InkText}" />
+                    <TextBlock Text="Specify global parameters and cover rules to auto-fill member records."
+                               Foreground="{StaticResource MutedText}" FontSize="12" Margin="0,2,0,0" />
+                </StackPanel>
+                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                    <TextBlock Text="Aa" FontSize="11" Foreground="{StaticResource MutedText}"
+                               VerticalAlignment="Center" Margin="0,0,5,0" />
+                    <ComboBox Width="110" FontSize="11" ItemsSource="{Binding DensityOptions}"
+                              SelectedItem="{Binding UiDensity}"
+                              ToolTip="Display size — Large for easier reading, Compact for more on screen" />
+                </StackPanel>
+            </Grid>
 
             <!-- Content Area (Scrollable) -->
             <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
@@ -114,74 +133,54 @@
                                             <Setter Property="FontWeight" Value="SemiBold" />
                                             <Setter Property="Foreground" Value="{StaticResource InkText}" />
                                         </Style>
+                                        <Style x:Key="CoverHeader" TargetType="DataGridColumnHeader"
+                                               BasedOn="{StaticResource {x:Type DataGridColumnHeader}}">
+                                            <Setter Property="HorizontalContentAlignment" Value="Center" />
+                                        </Style>
+                                        <!-- Selection stays a light tint instead of the stock full-width blue bar. -->
+                                        <Style TargetType="DataGridRow">
+                                            <Setter Property="Background" Value="Transparent" />
+                                            <Style.Triggers>
+                                                <Trigger Property="IsSelected" Value="True">
+                                                    <Setter Property="Background" Value="#EDF3FC" />
+                                                </Trigger>
+                                            </Style.Triggers>
+                                        </Style>
                                         <Style TargetType="DataGridCell">
                                             <Setter Property="Padding" Value="6,4" />
                                             <Setter Property="BorderThickness" Value="0" />
+                                            <Setter Property="VerticalAlignment" Value="Center" />
+                                            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+                                            <Style.Triggers>
+                                                <Trigger Property="IsSelected" Value="True">
+                                                    <Setter Property="Background" Value="Transparent" />
+                                                    <Setter Property="Foreground" Value="{StaticResource InkText}" />
+                                                </Trigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                        <Style x:Key="CoverCheck" TargetType="CheckBox" BasedOn="{StaticResource {x:Type CheckBox}}">
+                                            <Setter Property="IsEnabled" Value="{Binding IsCategoryNameValid}" />
+                                            <Setter Property="HorizontalAlignment" Value="Center" />
                                             <Setter Property="VerticalAlignment" Value="Center" />
                                         </Style>
                                     </DataGrid.Resources>
                                     <DataGrid.Columns>
                                         <DataGridTextColumn Header="Category" Binding="{Binding CategoryName, UpdateSourceTrigger=PropertyChanged}" Width="100" FontWeight="SemiBold" />
-                                        <DataGridCheckBoxColumn Header="GSC" Binding="{Binding Gsc, UpdateSourceTrigger=PropertyChanged}" Width="65">
-                                            <DataGridCheckBoxColumn.ElementStyle>
-                                                <Style TargetType="CheckBox" BasedOn="{StaticResource {x:Type CheckBox}}">
-                                                    <Setter Property="IsEnabled" Value="{Binding IsCategoryNameValid}" />
-                                                </Style>
-                                            </DataGridCheckBoxColumn.ElementStyle>
-                                            <DataGridCheckBoxColumn.EditingElementStyle>
-                                                <Style TargetType="CheckBox" BasedOn="{StaticResource {x:Type CheckBox}}">
-                                                    <Setter Property="IsEnabled" Value="{Binding IsCategoryNameValid}" />
-                                                </Style>
-                                            </DataGridCheckBoxColumn.EditingElementStyle>
-                                        </DataGridCheckBoxColumn>
-                                        <DataGridCheckBoxColumn Header="GL" Binding="{Binding Gl, UpdateSourceTrigger=PropertyChanged}" Width="65">
-                                            <DataGridCheckBoxColumn.ElementStyle>
-                                                <Style TargetType="CheckBox" BasedOn="{StaticResource {x:Type CheckBox}}">
-                                                    <Setter Property="IsEnabled" Value="{Binding IsCategoryNameValid}" />
-                                                </Style>
-                                            </DataGridCheckBoxColumn.ElementStyle>
-                                            <DataGridCheckBoxColumn.EditingElementStyle>
-                                                <Style TargetType="CheckBox" BasedOn="{StaticResource {x:Type CheckBox}}">
-                                                    <Setter Property="IsEnabled" Value="{Binding IsCategoryNameValid}" />
-                                                </Style>
-                                            </DataGridCheckBoxColumn.EditingElementStyle>
-                                        </DataGridCheckBoxColumn>
-                                        <DataGridCheckBoxColumn Header="TPD" Binding="{Binding Tpd, UpdateSourceTrigger=PropertyChanged}" Width="65">
-                                            <DataGridCheckBoxColumn.ElementStyle>
-                                                <Style TargetType="CheckBox" BasedOn="{StaticResource {x:Type CheckBox}}">
-                                                    <Setter Property="IsEnabled" Value="{Binding IsCategoryNameValid}" />
-                                                </Style>
-                                            </DataGridCheckBoxColumn.ElementStyle>
-                                            <DataGridCheckBoxColumn.EditingElementStyle>
-                                                <Style TargetType="CheckBox" BasedOn="{StaticResource {x:Type CheckBox}}">
-                                                    <Setter Property="IsEnabled" Value="{Binding IsCategoryNameValid}" />
-                                                </Style>
-                                            </DataGridCheckBoxColumn.EditingElementStyle>
-                                        </DataGridCheckBoxColumn>
-                                        <DataGridCheckBoxColumn Header="Trauma" Binding="{Binding Trauma, UpdateSourceTrigger=PropertyChanged}" Width="65">
-                                            <DataGridCheckBoxColumn.ElementStyle>
-                                                <Style TargetType="CheckBox" BasedOn="{StaticResource {x:Type CheckBox}}">
-                                                    <Setter Property="IsEnabled" Value="{Binding IsCategoryNameValid}" />
-                                                </Style>
-                                            </DataGridCheckBoxColumn.ElementStyle>
-                                            <DataGridCheckBoxColumn.EditingElementStyle>
-                                                <Style TargetType="CheckBox" BasedOn="{StaticResource {x:Type CheckBox}}">
-                                                    <Setter Property="IsEnabled" Value="{Binding IsCategoryNameValid}" />
-                                                </Style>
-                                            </DataGridCheckBoxColumn.EditingElementStyle>
-                                        </DataGridCheckBoxColumn>
-                                        <DataGridCheckBoxColumn Header="GLTPD" Binding="{Binding GlTpd, UpdateSourceTrigger=PropertyChanged}" Width="65">
-                                            <DataGridCheckBoxColumn.ElementStyle>
-                                                <Style TargetType="CheckBox" BasedOn="{StaticResource {x:Type CheckBox}}">
-                                                    <Setter Property="IsEnabled" Value="{Binding IsCategoryNameValid}" />
-                                                </Style>
-                                            </DataGridCheckBoxColumn.ElementStyle>
-                                            <DataGridCheckBoxColumn.EditingElementStyle>
-                                                <Style TargetType="CheckBox" BasedOn="{StaticResource {x:Type CheckBox}}">
-                                                    <Setter Property="IsEnabled" Value="{Binding IsCategoryNameValid}" />
-                                                </Style>
-                                            </DataGridCheckBoxColumn.EditingElementStyle>
-                                        </DataGridCheckBoxColumn>
+                                        <DataGridCheckBoxColumn Header="GSC" Binding="{Binding Gsc, UpdateSourceTrigger=PropertyChanged}" Width="65"
+                                                                HeaderStyle="{StaticResource CoverHeader}"
+                                                                ElementStyle="{StaticResource CoverCheck}" EditingElementStyle="{StaticResource CoverCheck}" />
+                                        <DataGridCheckBoxColumn Header="GL" Binding="{Binding Gl, UpdateSourceTrigger=PropertyChanged}" Width="65"
+                                                                HeaderStyle="{StaticResource CoverHeader}"
+                                                                ElementStyle="{StaticResource CoverCheck}" EditingElementStyle="{StaticResource CoverCheck}" />
+                                        <DataGridCheckBoxColumn Header="TPD" Binding="{Binding Tpd, UpdateSourceTrigger=PropertyChanged}" Width="65"
+                                                                HeaderStyle="{StaticResource CoverHeader}"
+                                                                ElementStyle="{StaticResource CoverCheck}" EditingElementStyle="{StaticResource CoverCheck}" />
+                                        <DataGridCheckBoxColumn Header="Trauma" Binding="{Binding Trauma, UpdateSourceTrigger=PropertyChanged}" Width="65"
+                                                                HeaderStyle="{StaticResource CoverHeader}"
+                                                                ElementStyle="{StaticResource CoverCheck}" EditingElementStyle="{StaticResource CoverCheck}" />
+                                        <DataGridCheckBoxColumn Header="GLTPD" Binding="{Binding GlTpd, UpdateSourceTrigger=PropertyChanged}" Width="65"
+                                                                HeaderStyle="{StaticResource CoverHeader}"
+                                                                ElementStyle="{StaticResource CoverCheck}" EditingElementStyle="{StaticResource CoverCheck}" />
                                     </DataGrid.Columns>
                                 </DataGrid>
                             </DockPanel>
@@ -199,13 +198,19 @@
                     </Grid.ColumnDefinitions>
                     
                     <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
-                        <!-- Validation hint -->
-                        <TextBlock Text="Please enter valid Group ID and Insurer ID integers to continue." 
-                                   Foreground="#DC2626" FontWeight="SemiBold" FontSize="12"
-                                   Visibility="{Binding ContinueToSetupCommand.CanExecute, Converter={StaticResource BoolToVis}, ConverterParameter=invert}" />
-                        <TextBlock Text="Parameters are valid. Ready to proceed." 
-                                   Foreground="#16A34A" FontWeight="SemiBold" FontSize="12"
-                                   Visibility="{Binding ContinueToSetupCommand.CanExecute, Converter={StaticResource BoolToVis}}" />
+                        <!-- Exactly one status shows: the blocking hint until valid, then the all-clear. -->
+                        <StackPanel Orientation="Horizontal"
+                                    Visibility="{Binding IsParametersValid, Converter={StaticResource BoolToVis}, ConverterParameter=invert}">
+                            <TextBlock Text="⚠" Foreground="#DC2626" FontSize="12" Margin="0,0,6,0" />
+                            <TextBlock Text="Enter a valid Group ID and Insurer ID to continue."
+                                       Foreground="#DC2626" FontSize="12" />
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal"
+                                    Visibility="{Binding IsParametersValid, Converter={StaticResource BoolToVis}}">
+                            <TextBlock Text="✓" Foreground="#16A34A" FontWeight="Bold" FontSize="12" Margin="0,0,6,0" />
+                            <TextBlock Text="Parameters are valid — ready to proceed."
+                                       Foreground="#16A34A" FontSize="12" />
+                        </StackPanel>
                     </StackPanel>
                     
                     <Button Grid.Column="1" Content="Continue to Setup →" Style="{StaticResource PrimaryButton}"
@@ -239,6 +244,11 @@
                 </StackPanel>
                 
                 <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                    <TextBlock Text="Aa" FontSize="11" Foreground="{StaticResource MutedText}"
+                               VerticalAlignment="Center" Margin="0,0,5,0" />
+                    <ComboBox Width="110" FontSize="11" ItemsSource="{Binding DensityOptions}"
+                              SelectedItem="{Binding UiDensity}" Margin="0,0,8,0"
+                              ToolTip="Display size — Large for easier reading, Compact for more on screen" />
                     <Border Background="#F2F5FA" CornerRadius="6" BorderBrush="{StaticResource Hairline}" BorderThickness="1" Padding="8,4" Margin="0,0,8,0">
                         <StackPanel Orientation="Horizontal">
                             <TextBlock Text="Group: " Foreground="{StaticResource MutedText}" FontSize="11" />
@@ -367,18 +377,19 @@
                 </Border>
             </Grid>
 
-            <!-- Output dir + Map button -->
+            <!-- Output dir + Map button — grouped right so the pre-flight controls read as one unit -->
             <Grid Grid.Row="2" Margin="0,12,0,0">
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="320" />
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="320" />
+                    <ColumnDefinition Width="14" />
+                    <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
-                <TextBlock Grid.Column="0" Text="Output folder" VerticalAlignment="Center"
+                <TextBlock Grid.Column="1" Text="Output folder" VerticalAlignment="Center"
                            Foreground="{StaticResource MutedText}" FontSize="12" Margin="0,0,8,0" />
-                <TextBox Grid.Column="1" Text="{Binding OutputDirectory}" VerticalAlignment="Center" />
-                <Button Grid.Column="3" Content="Map →" Style="{StaticResource PrimaryButton}"
+                <TextBox Grid.Column="2" Text="{Binding OutputDirectory}" VerticalAlignment="Center" />
+                <Button Grid.Column="4" Content="Map →" Style="{StaticResource PrimaryButton}"
                         MinWidth="160" Command="{Binding MatchCommand}"
                         ToolTip="Auto-map the confident columns and open the mapping screen" />
             </Grid>
@@ -422,13 +433,15 @@
                                 Command="{Binding RedoCommand}" ToolTip="Ctrl+Y" />
                     </StackPanel>
 
-                    <CheckBox Grid.Column="2" Grid.ColumnSpan="3" Content="Enable Fuzzy Matching (90%)" 
-                              IsChecked="{Binding FuzzyEnabled}" VerticalAlignment="Center" 
+                    <CheckBox Grid.Column="2" Grid.ColumnSpan="3" Content="Fuzzy match · 90%"
+                              IsChecked="{Binding FuzzyEnabled}" VerticalAlignment="Center"
                               ToolTip="Fuzzy matches apply at 90% confidence minimum. Uncheck to only allow exact/synonym matches." />
 
                     <Border Grid.Column="5" Margin="18,0,0,0" Background="#F2F5FA" CornerRadius="6"
                             BorderBrush="{StaticResource Hairline}" BorderThickness="1" Padding="4">
                         <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="Mode:" Foreground="{StaticResource MutedText}" FontSize="11"
+                                       VerticalAlignment="Center" Margin="6,0,4,0" />
                             <RadioButton Content="Overwrite" GroupName="WriteMode" Padding="10,3" Margin="2,0"
                                          IsChecked="{Binding AppendMode, Mode=OneWay, Converter={StaticResource BoolToVis}, ConverterParameter=invert}"
                                          Checked="OverwriteRadio_Checked" VerticalContentAlignment="Center"
@@ -463,7 +476,8 @@
                                 <TextBlock Text="Source: " Foreground="{StaticResource MutedText}" FontSize="11" />
                                 <TextBlock Text="{Binding SourceMappedCount}" Foreground="#16A34A" FontWeight="Bold" FontSize="11" />
                                 <TextBlock Text=" mapped, " Foreground="{StaticResource MutedText}" FontSize="11" />
-                                <TextBlock Text="{Binding SourceUnmappedCount}" Foreground="#DC2626" FontWeight="Bold" FontSize="11" />
+                                <!-- unused source columns are normal (more sources than targets) — keep neutral -->
+                                <TextBlock Text="{Binding SourceUnmappedCount}" Foreground="{StaticResource MutedText}" FontWeight="Bold" FontSize="11" />
                                 <TextBlock Text=" unmapped" Foreground="{StaticResource MutedText}" FontSize="11" />
                             </StackPanel>
                         </Border>
@@ -472,7 +486,8 @@
                                 <TextBlock Text="Target: " Foreground="{StaticResource MutedText}" FontSize="11" />
                                 <TextBlock Text="{Binding TargetMappedCount}" Foreground="#16A34A" FontWeight="Bold" FontSize="11" />
                                 <TextBlock Text=" mapped, " Foreground="{StaticResource MutedText}" FontSize="11" />
-                                <TextBlock Text="{Binding TargetUnmappedCount}" Foreground="#DC2626" FontWeight="Bold" FontSize="11" />
+                                <!-- unmapped targets are actionable, not errors — amber, not red -->
+                                <TextBlock Text="{Binding TargetUnmappedCount}" Foreground="#B45309" FontWeight="Bold" FontSize="11" />
                                 <TextBlock Text=" unmapped" Foreground="{StaticResource MutedText}" FontSize="11" />
                             </StackPanel>
                         </Border>
@@ -510,8 +525,8 @@
                                                     <ColumnDefinition Width="*" />
                                                     <ColumnDefinition Width="Auto" />
                                                 </Grid.ColumnDefinitions>
-                                                <TextBlock Grid.Column="0" Text="{Binding Label}" FontWeight="SemiBold" FontSize="12"
-                                                           Foreground="{StaticResource InkText}"
+                                                <TextBlock Grid.Column="0" Text="{Binding Label}" FontWeight="SemiBold" FontSize="11"
+                                                           Foreground="{StaticResource InkText}" TextWrapping="Wrap"
                                                            TextTrimming="CharacterEllipsis" VerticalAlignment="Center"
                                                            ToolTip="{Binding Label}" />
                                                 <TextBlock x:Name="srcCheck" Grid.Column="1" Text="✓" FontSize="11" FontWeight="Bold"
@@ -520,10 +535,10 @@
                                             </Grid>
                                         </Border>
                                         <!-- sample rows -->
-                                        <ItemsControl ItemsSource="{Binding SampleCells}">
+                                        <ItemsControl ItemsSource="{Binding SampleCells}" AlternationCount="2">
                                             <ItemsControl.ItemTemplate>
                                                 <DataTemplate>
-                                                    <Border BorderBrush="#EFF2F7" BorderThickness="0,0,0,1">
+                                                    <Border Style="{StaticResource ZebraRowCell}">
                                                         <TextBlock Text="{Binding}" Style="{StaticResource GridDataCell}"
                                                                    ToolTip="{Binding}" />
                                                     </Border>
@@ -548,8 +563,9 @@
             <GridSplitter Grid.Row="2" Height="6" HorizontalAlignment="Stretch"
                           Background="{StaticResource WindowBg}" />
 
-            <!-- TARGET grid (bottom, ~2/3): each column header + mapped source preview / picker -->
-            <Border Grid.Row="3" Background="{StaticResource PanelBg}">
+            <!-- TARGET grid (bottom, ~2/3): each column header + mapped source preview / picker.
+                 Tinted a whisper of blue so SOURCE and TARGET halves read differently at a glance. -->
+            <Border Grid.Row="3" Background="{StaticResource TargetPanelBg}">
                 <DockPanel>
                     <TextBlock DockPanel.Dock="Top"
                                Text="TARGET  —  click a column body to choose its source · click a header to clear · double-click a header to hide"
@@ -604,7 +620,7 @@
                                                 <StackPanel Orientation="Horizontal">
                                                     <TextBlock Text="← " FontSize="11" Foreground="{StaticResource MutedText}" />
                                                     <TextBlock Text="{Binding LinkedSourceLabel}" FontSize="11"
-                                                               FontStyle="Italic" Foreground="{StaticResource Accent}"
+                                                               FontWeight="SemiBold" Foreground="{StaticResource Accent}"
                                                                TextTrimming="CharacterEllipsis" ToolTip="{Binding LinkedSourceLabel}" />
                                                 </StackPanel>
                                             </Border>
@@ -644,7 +660,7 @@
                                                     </ContextMenu>
                                                 </Border.ContextMenu>
                                                 <TextBlock Text="{Binding TargetLabel}" FontWeight="SemiBold"
-                                                           FontSize="12" Foreground="{StaticResource InkText}"
+                                                           FontSize="11" Foreground="{StaticResource InkText}" TextWrapping="Wrap"
                                                            TextTrimming="CharacterEllipsis" VerticalAlignment="Center"
                                                            ToolTip="{Binding TargetLabel}" Margin="4,0" />
                                             </Border>
@@ -665,10 +681,10 @@
                                                 <Border x:Name="preview" Cursor="Hand" Background="Transparent"
                                                         MouseLeftButtonDown="TargetBody_MouseDown"
                                                         Visibility="{Binding BodyState, Converter={StaticResource StateToVis}, ConverterParameter=Preview}">
-                                                    <ItemsControl ItemsSource="{Binding SampleCells}">
+                                                    <ItemsControl ItemsSource="{Binding SampleCells}" AlternationCount="2">
                                                         <ItemsControl.ItemTemplate>
                                                             <DataTemplate>
-                                                                <Border BorderBrush="#EFF2F7" BorderThickness="0,0,0,1">
+                                                                <Border Style="{StaticResource ZebraRowCell}">
                                                                     <TextBlock Text="{Binding}" Style="{StaticResource GridDataCell}"
                                                                                ToolTip="{Binding}" />
                                                                 </Border>
@@ -677,8 +693,9 @@
                                                     </ItemsControl>
                                                 </Border>
 
-                                                <!-- PICKER: a type-a-value box, then the full source list. No inner
-                                                     scrollbar — the whole target grid scrolls. -->
+                                                <!-- PICKER: a type-a-value box, a type-ahead filter, then the source list
+                                                     capped to a scrollable height — open pickers stay compact instead of
+                                                     unrolling every source column down the grid. -->
                                                 <Border x:Name="picker" Background="White"
                                                         Visibility="{Binding BodyState, Converter={StaticResource StateToVis}, ConverterParameter=Picker}">
                                                     <StackPanel>
@@ -696,30 +713,36 @@
                                                                 </TextBox.Style>
                                                             </TextBox>
                                                         </Border>
-                                                        <TextBlock Text="— or pick a source —" FontSize="9"
+                                                        <TextBlock Text="— or pick a source —" FontSize="10"
                                                                    Foreground="{StaticResource MutedText}"
                                                                    HorizontalAlignment="Center" Margin="0,3" />
-                                                        <ItemsControl ItemsSource="{Binding DataContext.PickableSourceColumns, RelativeSource={RelativeSource AncestorType=Window}}">
-                                                            <ItemsControl.ItemTemplate>
-                                                                <DataTemplate>
-                                                                    <Border Cursor="Hand"
-                                                                            Tag="{Binding}" MouseLeftButtonUp="PickerOption_Click">
-                                                                        <Border.Style>
-                                                                            <Style TargetType="Border" BasedOn="{StaticResource PickerOption}">
-                                                                                <Style.Triggers>
-                                                                                    <Trigger Property="IsMouseOver" Value="True">
-                                                                                        <Setter Property="Background" Value="#F0F6FF" />
-                                                                                    </Trigger>
-                                                                                </Style.Triggers>
-                                                                            </Style>
-                                                                        </Border.Style>
-                                                                        <TextBlock Text="{Binding Label}" FontSize="12"
-                                                                                   Foreground="{StaticResource InkText}"
-                                                                                   TextTrimming="CharacterEllipsis" ToolTip="{Binding Label}" />
-                                                                    </Border>
-                                                                </DataTemplate>
-                                                            </ItemsControl.ItemTemplate>
-                                                        </ItemsControl>
+                                                        <TextBox FontSize="11" Margin="3,0,3,3" Padding="3,2"
+                                                                 TextChanged="PickerFilter_TextChanged"
+                                                                 ToolTip="Type to filter the source list" />
+                                                        <ScrollViewer MaxHeight="220" VerticalScrollBarVisibility="Auto"
+                                                                      HorizontalScrollBarVisibility="Disabled">
+                                                            <ItemsControl ItemsSource="{Binding DataContext.PickableSourceColumns, RelativeSource={RelativeSource AncestorType=Window}}">
+                                                                <ItemsControl.ItemTemplate>
+                                                                    <DataTemplate>
+                                                                        <Border Cursor="Hand"
+                                                                                Tag="{Binding}" MouseLeftButtonUp="PickerOption_Click">
+                                                                            <Border.Style>
+                                                                                <Style TargetType="Border" BasedOn="{StaticResource PickerOption}">
+                                                                                    <Style.Triggers>
+                                                                                        <Trigger Property="IsMouseOver" Value="True">
+                                                                                            <Setter Property="Background" Value="#F0F6FF" />
+                                                                                        </Trigger>
+                                                                                    </Style.Triggers>
+                                                                                </Style>
+                                                                            </Border.Style>
+                                                                            <TextBlock Text="{Binding Label}" FontSize="12"
+                                                                                       Foreground="{StaticResource InkText}"
+                                                                                       TextTrimming="CharacterEllipsis" ToolTip="{Binding Label}" />
+                                                                        </Border>
+                                                                    </DataTemplate>
+                                                                </ItemsControl.ItemTemplate>
+                                                            </ItemsControl>
+                                                        </ScrollViewer>
                                                     </StackPanel>
                                                 </Border>
                                             </Grid>
@@ -728,9 +751,13 @@
                                     </Grid>
 
                                     <DataTemplate.Triggers>
-                                        <!-- tint filled slots: auto = green, manual/constant = blue -->
+                                        <!-- tint filled slots: auto = green, fuzzy auto = amber (review me),
+                                             manual/constant = blue -->
                                         <DataTrigger Binding="{Binding IsLinked}" Value="True">
                                             <Setter TargetName="hdr" Property="Background" Value="{StaticResource AutoTint}" />
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding IsFuzzyAuto}" Value="True">
+                                            <Setter TargetName="hdr" Property="Background" Value="{StaticResource WarnBg}" />
                                         </DataTrigger>
                                         <DataTrigger Binding="{Binding IsManualOverride}" Value="True">
                                             <Setter TargetName="hdr" Property="Background" Value="{StaticResource ManualTint}" />
@@ -746,11 +773,45 @@
                 </DockPanel>
             </Border>
 
-            <!-- status footer -->
+            <!-- status footer: match-quality tally up front, then the narrative status -->
             <Border Grid.Row="4" Background="{StaticResource PanelBg}" BorderBrush="{StaticResource Hairline}"
                     BorderThickness="0,1,0,0" Padding="14,8">
-                <TextBlock Text="{Binding Status}" TextWrapping="Wrap"
-                           Foreground="{StaticResource InkText}" FontSize="12" />
+                <DockPanel>
+                    <StackPanel DockPanel.Dock="Left" Orientation="Horizontal" VerticalAlignment="Center"
+                                Margin="0,0,12,0"
+                                Visibility="{Binding HasMatched, Converter={StaticResource BoolToVis}}">
+                        <Border Background="{StaticResource AutoTint}" CornerRadius="4" Padding="7,2" Margin="0,0,5,0">
+                            <TextBlock FontSize="11" FontWeight="SemiBold" Foreground="#15803D"
+                                       Text="{Binding ExactCount, StringFormat={}exact {0}}"
+                                       ToolTip="Header names matched exactly" />
+                        </Border>
+                        <Border Background="#E8F1FF" CornerRadius="4" Padding="7,2" Margin="0,0,5,0">
+                            <TextBlock FontSize="11" FontWeight="SemiBold" Foreground="#0E6BA8"
+                                       Text="{Binding AliasCount, StringFormat={}alias {0}}"
+                                       ToolTip="Matched through a synonym group" />
+                        </Border>
+                        <Border Background="#F1EAFB" CornerRadius="4" Padding="7,2" Margin="0,0,5,0">
+                            <TextBlock FontSize="11" FontWeight="SemiBold" Foreground="#6D28D9"
+                                       Text="{Binding QualifiedCount, StringFormat={}qualified {0}}"
+                                       ToolTip="Matched through a qualified rule" />
+                        </Border>
+                        <Border Background="{StaticResource WarnBg}" CornerRadius="4" Padding="7,2">
+                            <TextBlock FontSize="11" FontWeight="SemiBold" Foreground="{StaticResource WarnText}"
+                                       Text="{Binding FuzzyCount, StringFormat={}fuzzy {0}}"
+                                       ToolTip="Fuzzy matches (90%+) — worth a glance; their headers are tinted amber" />
+                        </Border>
+                    </StackPanel>
+                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center"
+                                Margin="12,0,0,0">
+                        <TextBlock Text="Aa" FontSize="11" Foreground="{StaticResource MutedText}"
+                                   VerticalAlignment="Center" Margin="0,0,5,0" />
+                        <ComboBox Width="110" FontSize="11" ItemsSource="{Binding DensityOptions}"
+                                  SelectedItem="{Binding UiDensity}"
+                                  ToolTip="Display size — Large for easier reading, Compact for more on screen" />
+                    </StackPanel>
+                    <TextBlock Text="{Binding Status}" TextWrapping="Wrap" VerticalAlignment="Center"
+                               Foreground="{StaticResource InkText}" FontSize="12" />
+                </DockPanel>
             </Border>
         </Grid>
     </Grid>
