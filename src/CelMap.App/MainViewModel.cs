@@ -50,6 +50,7 @@ public sealed partial class MainViewModel : ObservableObject
 
         Parameters = new ParametersViewModel();
         Mapping = new MappingViewModel();
+        Mapping.SourceSheetChanged = OnMappingSourceSheetChanged;
         Setup = new SetupViewModel(_reader, msg => Status = msg, ResetGrid);
 
         OutputDirectory = @"C:\temp";
@@ -136,6 +137,33 @@ public sealed partial class MainViewModel : ObservableObject
     [ObservableProperty]
     private string _status = "Drop a source and a target file, check the header rows, then Map.";
 
+    // Briefly true after a successful Execute, so the status bar can flash to draw the eye.
+    [ObservableProperty]
+    private bool _statusFlash;
+
+    private System.Threading.CancellationTokenSource? _flashCts;
+
+    private async void FlashStatus()
+    {
+        _flashCts?.Cancel();
+        _flashCts = new System.Threading.CancellationTokenSource();
+        var token = _flashCts.Token;
+
+        StatusFlash = true;
+        try
+        {
+            await Task.Delay(TimeSpan.FromSeconds(5), token);
+        }
+        catch (System.Threading.Tasks.TaskCanceledException)
+        {
+        }
+
+        if (_flashCts.Token == token)
+        {
+            StatusFlash = false;
+        }
+    }
+
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasOutputFile))]
     private string? _outputFilePath;
@@ -145,6 +173,9 @@ public sealed partial class MainViewModel : ObservableObject
     [RelayCommand]
     private void OpenOutputFile()
     {
+        _flashCts?.Cancel();
+        StatusFlash = false;
+
         if (string.IsNullOrEmpty(OutputFilePath) || !File.Exists(OutputFilePath))
         {
             Status = "The output file is no longer available.";
@@ -178,16 +209,30 @@ public sealed partial class MainViewModel : ObservableObject
     [RelayCommand(CanExecute = nameof(CanMatch))]
     private async Task MatchAsync()
     {
+        await RunMatchAsync(Setup.SelectedSourceSheet!, Setup.SourceHeaderRow - 1, detectHeader: false);
+    }
+
+    /// <summary>
+    /// Re-runs the match against a different source sheet (chosen from the mapper dropdown),
+    /// auto-detecting the new sheet's header row. Existing mappings are dropped since the
+    /// source columns change.
+    /// </summary>
+    private async void OnMappingSourceSheetChanged(string sourceSheet)
+    {
+        if (IsBusy) return;
+        await RunMatchAsync(sourceSheet, srcHeaderRow0: null, detectHeader: true);
+    }
+
+    private async Task RunMatchAsync(string sourceSheet, int? srcHeaderRow0, bool detectHeader)
+    {
         IsBusy = true;
         Status = "Matching…";
         try
         {
             string sourcePath = Setup.SourceFilePath!;
             string targetPath = Setup.TargetFilePath!;
-            string sourceSheet = Setup.SelectedSourceSheet!;
             string targetSheet = Setup.SelectedTargetSheet!;
             string? sourcePassword = Setup.SourcePassword;
-            int srcHeaderRow = Setup.SourceHeaderRow - 1;
             int tgtHeaderRow = Setup.TargetHeaderRow - 1;
             bool isFuzzyEnabled = FuzzyEnabled;
 
@@ -209,17 +254,18 @@ public sealed partial class MainViewModel : ObservableObject
                 }
             }
 
-            var (sourceData, targetData, sourceHeaders, targetHeaders, result) = await Task.Run(() =>
+            var (sourceData, targetData, sourceHeaders, targetHeaders, result, srcHeaderRow) = await Task.Run(() =>
             {
                 var src = _reader.ReadSheet(sourcePath, sourceSheet, sourcePassword);
                 var tgt = _reader.ReadSheet(targetPath, targetSheet);
-                var srcH = HeaderExtractor.Extract(src, srcHeaderRow);
+                int srcHdr = detectHeader ? HeaderRowDetector.Detect(src) : srcHeaderRow0!.Value;
+                var srcH = HeaderExtractor.Extract(src, srcHdr);
                 var tgtH = HeaderExtractor.Extract(tgt, tgtHeaderRow);
                 var res = _matcher.Match(
                     srcH, tgtH,
                     new MatcherOptions(ConfidenceThreshold: 90, FuzzyEnabled: isFuzzyEnabled, ActiveCovers: activeCovers),
-                    s => src.ColumnIsEmpty(s.ColumnIndex, srcHeaderRow));
-                return (src, tgt, srcH, tgtH, res);
+                    s => src.ColumnIsEmpty(s.ColumnIndex, srcHdr));
+                return (src, tgt, srcH, tgtH, res, srcHdr);
             });
 
             _sourceData = sourceData;
@@ -233,6 +279,28 @@ public sealed partial class MainViewModel : ObservableObject
             _sourceSamples = BuildSourceSamples(sourceData, sourceHeaders, srcHeaderRow);
 
             Mapping.Populate(result, sourceHeaders, sourceData, srcHeaderRow, _sourceSamples, Parameters, _aliases);
+
+            // Keep Setup's header row in step so a later re-Match from Setup uses the detected row,
+            // and feed the mapper's sheet dropdown with this workbook's sheets.
+            if (detectHeader) Setup.SourceHeaderRow = srcHeaderRow + 1;
+            Mapping.SetSourceSheets(await Task.Run(() =>
+            {
+                var allNames = _reader.GetSheetNames(sourcePath, sourcePassword);
+                var validNames = new System.Collections.Generic.List<string>();
+                foreach (var name in allNames)
+                {
+                    var sheet = _reader.ReadSheet(sourcePath, name, sourcePassword);
+                    if (sheet.RowCount > 0)
+                    {
+                        int headerRow0 = CelMap.Core.HeaderRowDetector.Detect(sheet);
+                        if (sheet.RowCount - (headerRow0 + 1) > 0)
+                        {
+                            validNames.Add(name);
+                        }
+                    }
+                }
+                return (System.Collections.Generic.IReadOnlyList<string>)validNames;
+            }), sourceSheet);
 
             int auto = Mapping.Rows.Count(r => r.IsLinked);
             int paramFilled = Mapping.Rows.Count(r => r.IsFilled && !r.IsLinked);
@@ -325,13 +393,8 @@ public sealed partial class MainViewModel : ObservableObject
                 columnMap[src.ColumnIndex] = row.TargetColumn.ColumnIndex;
         }
 
-        int filledCount = columnMap.Count + constantColumns.Count;
-        if (filledCount == 0)
-        {
-            Status = "Nothing mapped — pick a source or type a value for at least one target column before writing.";
-            return;
-        }
-
+        // An empty mapping is allowed: it produces a clean copy of the target with no
+        // source columns filled (useful for exporting the target template as-is).
         if (!GroupIdRowCountMatchesData(out string mismatch))
         {
             Status = mismatch;
@@ -385,6 +448,7 @@ public sealed partial class MainViewModel : ObservableObject
                    + $"{writeResult.RowsWritten} row(s) written.{warnings}\n"
                    + "Output:";
             OutputFilePath = writeResult.OutputFilePath;
+            FlashStatus();
         }
         catch (Exception ex)
         {

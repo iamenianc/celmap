@@ -33,6 +33,11 @@ public sealed partial class SourceColumnViewModel : ObservableObject
     [ObservableProperty]
     private bool _isPicked;
 
+    /// <summary>True while the user is hovering the partner column on the other grid — used to
+    /// flash the link so you can see, by content, what's mapped to what.</summary>
+    [ObservableProperty]
+    private bool _isHoverHighlighted;
+
     /// <summary>True if this source column has no data below the header (PRD §2.3 warning).</summary>
     public bool IsEmpty { get; }
 

@@ -28,15 +28,27 @@ public partial class MappingView : UserControl
     private static MappingRowViewModel? Row(object sender) =>
         (sender as FrameworkElement)?.DataContext as MappingRowViewModel;
 
-    // Double-click a header clears the column back to blank. (Mapping is now done via the
-    // right-click "Map" submenu — see MapMenuItem_Click.)
+    // Target header: double-click clears the column back to blank; single-click links it
+    // to the armed source (click-to-link — see SourceColumn_MouseDown). Mapping is also
+    // available via the right-click "Map" submenu (see MapMenuItem_Click).
     private void TargetHeader_MouseDown(object sender, MouseButtonEventArgs e)
     {
-        if (e.ClickCount != 2) return;
-        e.Handled = true;
         var row = Row(sender);
         if (row is null || row.IsLocked) return;
-        ViewModel.ClearSlot(row);
+
+        if (e.ClickCount == 2)
+        {
+            e.Handled = true;
+            ViewModel.ClearSlot(row);
+            return;
+        }
+
+        // Single click: if a source is armed, link it to this target.
+        if (ViewModel.HasPickedSource)
+        {
+            e.Handled = true;
+            ViewModel.LinkPickedTo(row);
+        }
     }
 
     // Right-click "Map" submenu item → link the chosen source column to this target.
@@ -88,11 +100,18 @@ public partial class MappingView : UserControl
 
     private void SourceColumn_MouseDown(object sender, MouseButtonEventArgs e)
     {
-        if (e.ClickCount == 2 && sender is FrameworkElement fe && fe.DataContext is SourceColumnViewModel source)
+        if (sender is not FrameworkElement fe || fe.DataContext is not SourceColumnViewModel source) return;
+
+        if (e.ClickCount == 2)
         {
             e.Handled = true;
             ViewModel.UnmapSource(source);
+            return;
         }
+
+        // Single click arms this source for click-to-link onto a target header.
+        e.Handled = true;
+        ViewModel.PickSource(source);
     }
 
     private void SourceClearMenuItem_Click(object sender, RoutedEventArgs e)
@@ -102,6 +121,19 @@ public partial class MappingView : UserControl
             ViewModel.UnmapSource(source);
         }
     }
+
+    // Hover-sync: flash the mapped partner column on the other grid.
+    private void SourceColumn_MouseEnter(object sender, MouseEventArgs e) =>
+        ViewModel.HoverSource((sender as FrameworkElement)?.DataContext as SourceColumnViewModel, true);
+
+    private void SourceColumn_MouseLeave(object sender, MouseEventArgs e) =>
+        ViewModel.HoverSource((sender as FrameworkElement)?.DataContext as SourceColumnViewModel, false);
+
+    private void TargetColumn_MouseEnter(object sender, MouseEventArgs e) =>
+        ViewModel.HoverTarget(Row(sender), true);
+
+    private void TargetColumn_MouseLeave(object sender, MouseEventArgs e) =>
+        ViewModel.HoverTarget(Row(sender), false);
 
     private static ContextMenu? FindParentContextMenu(DependencyObject? child)
     {

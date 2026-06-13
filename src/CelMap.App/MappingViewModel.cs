@@ -21,6 +21,42 @@ public sealed partial class MappingViewModel : ObservableObject
     public ObservableCollection<SourceColumnViewModel> SourceColumns { get; } = new();
     public ObservableCollection<MappingRowViewModel> Rows { get; } = new();
 
+    // ---- Source sheet switching ---------------------------------------------
+    // The list of sheets in the source workbook and the one currently mapped.
+    // Picking a different sheet asks MainViewModel (which owns the reader/matcher)
+    // to re-read that sheet and re-run the whole match against the same target.
+    public ObservableCollection<string> SourceSheets { get; } = new();
+
+    /// <summary>Set by MainViewModel: invoked with the newly chosen source sheet name.</summary>
+    public Action<string>? SourceSheetChanged { get; set; }
+
+    private bool _suppressSheetChange;
+
+    [ObservableProperty]
+    private string? _selectedSourceSheet;
+
+    partial void OnSelectedSourceSheetChanged(string? value)
+    {
+        if (_suppressSheetChange || string.IsNullOrEmpty(value)) return;
+        SourceSheetChanged?.Invoke(value);
+    }
+
+    /// <summary>Replace the sheet list + selection without triggering a re-match (used while populating).</summary>
+    public void SetSourceSheets(IEnumerable<string> sheets, string? selected)
+    {
+        _suppressSheetChange = true;
+        try
+        {
+            SourceSheets.Clear();
+            foreach (var s in sheets) SourceSheets.Add(s);
+            SelectedSourceSheet = selected;
+        }
+        finally
+        {
+            _suppressSheetChange = false;
+        }
+    }
+
     /// <summary>True once a match has populated the grid; gates the match-quality footer.</summary>
     public bool HasMatched => Rows.Count > 0;
 
@@ -39,8 +75,14 @@ public sealed partial class MappingViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(VisibleSourceColumns))]
     private bool _hideEmptySources = true;
 
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(VisibleSourceColumns))]
+    private bool _hideMappedSources;
+
     public IEnumerable<SourceColumnViewModel> VisibleSourceColumns =>
-        HideEmptySources ? SourceColumns.Where(s => !s.IsEmpty) : SourceColumns;
+        SourceColumns.Where(s =>
+            (!HideEmptySources || !s.IsEmpty) &&
+            (!HideMappedSources || !s.IsLinked));
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(VisibleRows))]
@@ -231,6 +273,62 @@ public sealed partial class MappingViewModel : ObservableObject
         PushHistory();
         row.SetLink(source.Column, SourceIsEmpty, SamplesFor);
         AfterMappingEdit();
+    }
+
+    // ---- Click-to-link --------------------------------------------------------
+    // When source headers are meaningless (random numbers), the right-click "Map"
+    // submenu is useless because you can't recognise a source by its label. Instead
+    // the user clicks a source header to "arm" it (both grids show sample data, so
+    // they pick by content), then clicks the target header to link it. One armed
+    // source at a time.
+
+    /// <summary>The source the user has clicked and is about to link, if any.</summary>
+    public SourceColumnViewModel? PickedSource { get; private set; }
+
+    public bool HasPickedSource => PickedSource is not null;
+
+    /// <summary>Toggle the armed source. Clicking the armed one again cancels.</summary>
+    public void PickSource(SourceColumnViewModel? source)
+    {
+        if (PickedSource is { } prev) prev.IsPicked = false;
+        PickedSource = ReferenceEquals(PickedSource, source) ? null : source;
+        if (PickedSource is { } now) now.IsPicked = true;
+        OnPropertyChanged(nameof(HasPickedSource));
+    }
+
+    public void ClearPick() => PickSource(null);
+
+    /// <summary>Link the target to whatever source is currently armed, then disarm.</summary>
+    public void LinkPickedTo(MappingRowViewModel? row)
+    {
+        if (PickedSource is not { } source || row is null || row.IsLocked) return;
+        MapSlot(row, source);
+        ClearPick();
+    }
+
+    // ---- Hover-sync -----------------------------------------------------------
+    // Hovering a column flashes its mapped partner(s) on the other grid, so the link
+    // is visible by content without drawing connector lines.
+
+    /// <summary>Highlight the target(s) this source is mapped to (or clear if hovering=false).</summary>
+    public void HoverSource(SourceColumnViewModel? source, bool hovering)
+    {
+        if (source is null) return;
+        foreach (var row in Rows)
+        {
+            row.IsHoverHighlighted = hovering && row.IsLinked
+                && row.LinkedSource?.ColumnIndex == source.Column.ColumnIndex;
+        }
+    }
+
+    /// <summary>Highlight the source this target is mapped to (or clear if hovering=false).</summary>
+    public void HoverTarget(MappingRowViewModel? row, bool hovering)
+    {
+        int? srcIdx = row?.LinkedSource?.ColumnIndex;
+        foreach (var s in SourceColumns)
+        {
+            s.IsHoverHighlighted = hovering && srcIdx is int i && s.Column.ColumnIndex == i;
+        }
     }
 
     public void ClearSlot(MappingRowViewModel? row)

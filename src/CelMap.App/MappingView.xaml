@@ -36,8 +36,11 @@
                               IsChecked="{Binding DataContext.FuzzyEnabled, RelativeSource={RelativeSource AncestorType=Window}}" VerticalAlignment="Center" Margin="0,0,16,0"
                               ToolTip="Fuzzy matches apply at 90% confidence minimum. Uncheck to only allow exact/synonym matches." />
                     <CheckBox Content="Hide Empty Sources"
-                              IsChecked="{Binding HideEmptySources}" VerticalAlignment="Center"
+                              IsChecked="{Binding HideEmptySources}" VerticalAlignment="Center" Margin="0,0,16,0"
                               ToolTip="Automatically hides source columns that have no data below the header" />
+                    <CheckBox Content="Hide Mapped Sources"
+                              IsChecked="{Binding HideMappedSources}" VerticalAlignment="Center"
+                              ToolTip="Hides source columns that have already been mapped to a target" />
                 </StackPanel>
 
                 <WrapPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center"
@@ -70,8 +73,19 @@
         <Border Grid.Row="1" Background="{StaticResource PanelBg}" BorderBrush="{StaticResource Hairline}"
                 BorderThickness="0,0,0,1">
             <DockPanel>
-                <TextBlock DockPanel.Dock="Top" Text="SOURCE  —  what you're copying from"
-                           Style="{StaticResource SectionHeader}" Margin="14,8,14,4" />
+                <DockPanel DockPanel.Dock="Top" Margin="14,8,14,4">
+                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                        <TextBlock Text="Sheet:" FontSize="11" Foreground="{StaticResource MutedText}"
+                                   VerticalAlignment="Center" Margin="0,0,6,0" />
+                        <ComboBox Width="160" FontSize="11"
+                                  ItemsSource="{Binding SourceSheets}"
+                                  SelectedItem="{Binding SelectedSourceSheet}"
+                                  ToolTip="Switch the source to a different worksheet — re-runs the match against the same target" />
+                    </StackPanel>
+                    <TextBlock Style="{StaticResource SectionHeader}" VerticalAlignment="Center">
+                        <Run Text="SOURCE  —  " /><Run Text="{Binding DataContext.Setup.SourceFilePath, Mode=OneWay, RelativeSource={RelativeSource AncestorType=Window}}" Foreground="{StaticResource InkText}" />
+                    </TextBlock>
+                </DockPanel>
                 
                 <!-- Source footer / badge -->
                 <Border DockPanel.Dock="Bottom" Background="{StaticResource PanelBg}"
@@ -96,9 +110,15 @@
                         </ItemsControl.ItemsPanel>
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
-                                <Border Width="{StaticResource GridColWidth}" Background="Transparent"
+                                <!-- Width is Auto so each source column is only as wide as its header
+                                     needs. MinWidth ~= 11 chars so empty/1-char headers stay readable;
+                                     MaxWidth caps the column so a long header can't dominate the table —
+                                     past it the header wraps. -->
+                                <Border Background="Transparent" MinWidth="80" MaxWidth="140"
                                         BorderBrush="{StaticResource GridLine}" BorderThickness="0,0,1,0"
-                                        MouseLeftButtonDown="SourceColumn_MouseDown">
+                                        MouseLeftButtonDown="SourceColumn_MouseDown"
+                                        MouseEnter="SourceColumn_MouseEnter"
+                                        MouseLeave="SourceColumn_MouseLeave">
                                    <StackPanel>
                                         <!-- HEADER CONTAINER (frozen) -->
                                         <StackPanel Panel.ZIndex="1">
@@ -108,7 +128,8 @@
                                             
                                             <!-- mapped-target label strip -->
                                             <Border BorderBrush="{StaticResource GridLine}" BorderThickness="0,0,0,1"
-                                                    Background="#ffffff" Padding="8,3" Height="24">
+                                                    Background="#ffffff" Padding="8,3" Height="24"
+                                                    Width="{Binding ActualWidth, ElementName=srcHdr}">
                                                 <Grid Visibility="{Binding IsLinked, Converter={StaticResource BoolToVis}, ConverterParameter=hidden}">
                                                     <Grid.ColumnDefinitions>
                                                         <ColumnDefinition Width="Auto" />
@@ -125,14 +146,16 @@
                                                     BorderThickness="0,0,0,1">
                                                 <Border.Style>
                                                     <Style TargetType="Border" BasedOn="{StaticResource GridHeaderCell}">
+                                                        <Setter Property="Cursor" Value="Hand" />
+                                                        <Setter Property="ToolTip" Value="Click to pick this source, then click a target below" />
                                                         <Style.Triggers>
                                                             <DataTrigger Binding="{Binding IsLinked}" Value="True">
-                                                                <Setter Property="Cursor" Value="Hand" />
-                                                                <Setter Property="ToolTip" Value="Double-click to clear mappings · right-click to unmap" />
+                                                                <Setter Property="ToolTip" Value="Click to pick · double-click to clear mappings · right-click to unmap" />
                                                             </DataTrigger>
-                                                            <DataTrigger Binding="{Binding IsLinked}" Value="False">
-                                                                <Setter Property="Cursor" Value="Arrow" />
-                                                            </DataTrigger>
+                                                            <!-- Pre-click aim feedback: tint the header the cursor is over. -->
+                                                            <Trigger Property="IsMouseOver" Value="True">
+                                                                <Setter Property="Background" Value="{StaticResource DropZoneBg}" />
+                                                            </Trigger>
                                                         </Style.Triggers>
                                                     </Style>
                                                 </Border.Style>
@@ -150,7 +173,7 @@
                                                     </Grid.ColumnDefinitions>
                                                     <TextBlock Grid.Column="0" Text="{Binding Label}" FontWeight="SemiBold" FontSize="11"
                                                                Foreground="{StaticResource InkText}" TextWrapping="Wrap"
-                                                               TextTrimming="CharacterEllipsis" VerticalAlignment="Center"
+                                                               TextTrimming="CharacterEllipsis" VerticalAlignment="Center" MaxWidth="126"
                                                                ToolTip="{Binding Label}" />
                                                     <TextBlock x:Name="srcCheck" Grid.Column="1" Text="✓" FontSize="11" FontWeight="Bold"
                                                                Margin="4,0,0,0" VerticalAlignment="Center" Visibility="Collapsed"
@@ -159,12 +182,15 @@
                                             </Border>
                                         </StackPanel>
 
-                                        <ItemsControl ItemsSource="{Binding SampleCells}" AlternationCount="2" Panel.ZIndex="0">
+                                        <!-- Data cells must not widen the column past the header: cap each
+                                             cell to the header's width and trim with an ellipsis. -->
+                                        <ItemsControl ItemsSource="{Binding SampleCells}" AlternationCount="2" Panel.ZIndex="0"
+                                                      Width="{Binding ActualWidth, ElementName=srcHdr}">
                                             <ItemsControl.ItemTemplate>
                                                 <DataTemplate>
                                                     <Border Style="{StaticResource ZebraRowCell}">
                                                         <TextBlock Text="{Binding}" Style="{StaticResource GridDataCell}"
-                                                                   ToolTip="{Binding}" />
+                                                                   TextTrimming="CharacterEllipsis" ToolTip="{Binding}" />
                                                     </Border>
                                                 </DataTemplate>
                                             </ItemsControl.ItemTemplate>
@@ -175,6 +201,17 @@
                                     <DataTrigger Binding="{Binding IsLinked}" Value="True">
                                         <Setter TargetName="srcHdr" Property="Background" Value="{StaticResource AutoTint}" />
                                         <Setter TargetName="srcCheck" Property="Visibility" Value="Visible" />
+                                    </DataTrigger>
+                                    <!-- Hover-sync: target hovered, this is its mapped source. -->
+                                    <DataTrigger Binding="{Binding IsHoverHighlighted}" Value="True">
+                                        <Setter TargetName="srcHdr" Property="BorderBrush" Value="{StaticResource Accent}" />
+                                        <Setter TargetName="srcHdr" Property="BorderThickness" Value="2" />
+                                    </DataTrigger>
+                                    <!-- Armed for click-to-link: highlight so the user sees what they picked. -->
+                                    <DataTrigger Binding="{Binding IsPicked}" Value="True">
+                                        <Setter TargetName="srcHdr" Property="Background" Value="{StaticResource ManualTint}" />
+                                        <Setter TargetName="srcHdr" Property="BorderBrush" Value="{StaticResource Accent}" />
+                                        <Setter TargetName="srcHdr" Property="BorderThickness" Value="2" />
                                     </DataTrigger>
                                 </DataTemplate.Triggers>
                             </DataTemplate>
@@ -204,9 +241,9 @@
                     </WrapPanel>
                 </Border>
 
-                <TextBlock DockPanel.Dock="Top"
-                           Text="TARGET  —  right-click a header → Map to choose its source · double-click a header to clear · right-click for Clear / Hide"
-                           Style="{StaticResource SectionHeader}" Margin="14,8,14,4" />
+                <TextBlock DockPanel.Dock="Top" Style="{StaticResource SectionHeader}" Margin="14,8,14,4">
+                    <Run Text="TARGET  " /><Run Text="{Binding DataContext.Setup.TargetFileName, Mode=OneWay, RelativeSource={RelativeSource AncestorType=Window}}" Foreground="{StaticResource InkText}" />
+                </TextBlock>
                 <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
                     <ItemsControl ItemsSource="{Binding VisibleRows}">
                         <ItemsControl.ItemsPanel>
@@ -232,21 +269,15 @@
                                     </Border>
 
                                     <!-- ============ VISIBLE column ============ -->
-                                    <Border x:Name="col"
+                                    <!-- Same width logic as the source columns: Auto so the column is only
+                                         as wide as its header. MinWidth ~= 11 chars so empty/1-char headers
+                                         stay readable; MaxWidth caps the column so a long header can't
+                                         dominate the table — past it the header wraps. -->
+                                    <Border x:Name="col" MinWidth="80" MaxWidth="140"
                                             BorderBrush="{StaticResource GridLine}" BorderThickness="0,0,1,0"
+                                            MouseEnter="TargetColumn_MouseEnter"
+                                            MouseLeave="TargetColumn_MouseLeave"
                                             Visibility="{Binding IsHidden, Converter={StaticResource BoolToVis}, ConverterParameter=invert}">
-                                      <Border.Style>
-                                          <Style TargetType="Border">
-                                              <Style.Triggers>
-                                                  <DataTrigger Binding="{Binding IsFilled}" Value="True">
-                                                      <Setter Property="Width" Value="{StaticResource GridColWidth}" />
-                                                  </DataTrigger>
-                                                  <DataTrigger Binding="{Binding IsFilled}" Value="False">
-                                                      <Setter Property="Width" Value="Auto" />
-                                                  </DataTrigger>
-                                              </Style.Triggers>
-                                          </Style>
-                                      </Border.Style>
                                       <StackPanel>
                                         <!-- HEADER CONTAINER (frozen) -->
                                         <StackPanel Panel.ZIndex="1">
@@ -256,7 +287,8 @@
                                             
                                             <!-- mapped-source label strip -->
                                             <Border BorderBrush="{StaticResource GridLine}" BorderThickness="0,0,0,1"
-                                                    Background="#ffffff" Padding="8,3" Height="24">
+                                                    Background="#ffffff" Padding="8,3" Height="24"
+                                                    Width="{Binding ActualWidth, ElementName=hdr}">
                                                 <Grid Visibility="{Binding IsLinked, Converter={StaticResource BoolToVis}, ConverterParameter=hidden}">
                                                     <Grid.ColumnDefinitions>
                                                         <ColumnDefinition Width="Auto" />
@@ -283,8 +315,12 @@
                                                             </DataTrigger>
                                                             <DataTrigger Binding="{Binding IsLocked}" Value="False">
                                                                 <Setter Property="Cursor" Value="Hand" />
-                                                                <Setter Property="ToolTip" Value="Right-click → Map to choose · double-click to clear · right-click to hide" />
+                                                                <Setter Property="ToolTip" Value="Click to link the picked source · right-click → Map · double-click to clear" />
                                                             </DataTrigger>
+                                                            <!-- Pre-click aim feedback: tint the header the cursor is over. -->
+                                                            <Trigger Property="IsMouseOver" Value="True">
+                                                                <Setter Property="Background" Value="{StaticResource DropZoneBg}" />
+                                                            </Trigger>
                                                         </Style.Triggers>
                                                     </Style>
                                                 </Border.Style>
@@ -336,10 +372,18 @@
                                                         <MenuItem Header="Hide column" Click="HideMenuItem_Click" />
                                                     </ContextMenu>
                                                 </Border.ContextMenu>
-                                                <TextBlock Text="{Binding TargetLabel}" FontWeight="SemiBold"
-                                                           FontSize="11" Foreground="{StaticResource InkText}" TextWrapping="Wrap"
-                                                           TextTrimming="CharacterEllipsis" VerticalAlignment="Center"
-                                                           ToolTip="{Binding TargetLabel}" Margin="4,0" />
+                                                <!-- Wrapped in a *-width Grid (like the source header) so the
+                                                     TextBlock has a definite width to wrap into rather than
+                                                     measuring at its full single-line width. -->
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*" />
+                                                    </Grid.ColumnDefinitions>
+                                                    <TextBlock Grid.Column="0" Text="{Binding TargetLabel}" FontWeight="SemiBold"
+                                                               FontSize="11" Foreground="{StaticResource InkText}" TextWrapping="Wrap"
+                                                               TextTrimming="CharacterEllipsis" VerticalAlignment="Center" MaxWidth="126"
+                                                               ToolTip="{Binding TargetLabel}" Margin="4,0" />
+                                                </Grid>
                                             </Border>
                                         </StackPanel>
 
@@ -351,15 +395,17 @@
                                                     ToolTip="Right-click the header → Map to choose a source"
                                                     Visibility="{Binding BodyState, Converter={StaticResource StateToVis}, ConverterParameter=Blank}" />
 
-                                            <!-- PREVIEW -->
+                                            <!-- PREVIEW — cells lock to the header width and trim with an
+                                                 ellipsis, so a long value can't widen the column past its header. -->
                                             <Border x:Name="preview" Background="Transparent"
                                                     Visibility="{Binding BodyState, Converter={StaticResource StateToVis}, ConverterParameter=Preview}">
-                                                <ItemsControl ItemsSource="{Binding SampleCells}" AlternationCount="2">
+                                                <ItemsControl ItemsSource="{Binding SampleCells}" AlternationCount="2"
+                                                              Width="{Binding ActualWidth, ElementName=hdr}">
                                                     <ItemsControl.ItemTemplate>
                                                         <DataTemplate>
                                                             <Border Style="{StaticResource ZebraRowCell}">
                                                                 <TextBlock Text="{Binding}" Style="{StaticResource GridDataCell}"
-                                                                           ToolTip="{Binding}" />
+                                                                           TextTrimming="CharacterEllipsis" ToolTip="{Binding}" />
                                                             </Border>
                                                         </DataTemplate>
                                                     </ItemsControl.ItemTemplate>
@@ -383,6 +429,11 @@
                                     <DataTrigger Binding="{Binding IsConstant}" Value="True">
                                         <Setter TargetName="hdr" Property="Background" Value="{StaticResource ManualTint}" />
                                     </DataTrigger>
+                                    <!-- Hover-sync: source hovered, this is its mapped target. -->
+                                    <DataTrigger Binding="{Binding IsHoverHighlighted}" Value="True">
+                                        <Setter TargetName="hdr" Property="BorderBrush" Value="{StaticResource Accent}" />
+                                        <Setter TargetName="hdr" Property="BorderThickness" Value="2" />
+                                    </DataTrigger>
                                 </DataTemplate.Triggers>
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
@@ -392,8 +443,38 @@
         </Border>
 
         <!-- status footer -->
-        <Border Grid.Row="4" Background="{StaticResource PanelBg}" BorderBrush="{StaticResource Hairline}"
+        <Border Grid.Row="4" BorderBrush="{StaticResource Hairline}"
                 BorderThickness="0,1,0,0" Padding="14,8">
+            <Border.Style>
+                <Style TargetType="Border">
+                    <Setter Property="Background">
+                        <Setter.Value>
+                            <SolidColorBrush Color="#ffffff" />
+                        </Setter.Value>
+                    </Setter>
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding DataContext.StatusFlash, RelativeSource={RelativeSource AncestorType=Window}}" Value="True">
+                            <DataTrigger.EnterActions>
+                                <BeginStoryboard x:Name="FlashBgStoryboard">
+                                    <Storyboard RepeatBehavior="Forever">
+                                        <ColorAnimation Storyboard.TargetProperty="Background.Color"
+                                                        To="#2d7d50" Duration="0:0:1.25" AutoReverse="True" />
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </DataTrigger.EnterActions>
+                            <DataTrigger.ExitActions>
+                                <RemoveStoryboard BeginStoryboardName="FlashBgStoryboard" />
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <ColorAnimation Storyboard.TargetProperty="Background.Color"
+                                                        To="#ffffff" Duration="0:0:0.6" />
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </DataTrigger.ExitActions>
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </Border.Style>
             <DockPanel>
                 <StackPanel DockPanel.Dock="Left" Orientation="Horizontal" VerticalAlignment="Center"
                             Margin="0,0,12,0"
@@ -433,17 +514,58 @@
                 <Button DockPanel.Dock="Right" Content="Execute ▸" Style="{StaticResource PrimaryButton}"
                         MinWidth="140" Margin="12,0,0,0" Command="{Binding DataContext.WriteCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                         ToolTip="Write every mapped, non-hidden column to the output copy" />
-                <TextBlock TextWrapping="Wrap" VerticalAlignment="Center"
-                           Foreground="{StaticResource InkText}" FontSize="12">
+                <TextBlock TextWrapping="Wrap" VerticalAlignment="Center" FontSize="12">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="Foreground">
+                                <Setter.Value>
+                                    <SolidColorBrush Color="#1a2420" />
+                                </Setter.Value>
+                            </Setter>
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding DataContext.StatusFlash, RelativeSource={RelativeSource AncestorType=Window}}" Value="True">
+                                    <DataTrigger.EnterActions>
+                                        <BeginStoryboard x:Name="FlashTextStoryboard">
+                                            <Storyboard RepeatBehavior="Forever">
+                                                <ColorAnimation Storyboard.TargetProperty="Foreground.Color"
+                                                                To="#ffffff" Duration="0:0:1.25" AutoReverse="True" />
+                                            </Storyboard>
+                                        </BeginStoryboard>
+                                    </DataTrigger.EnterActions>
+                                    <DataTrigger.ExitActions>
+                                        <RemoveStoryboard BeginStoryboardName="FlashTextStoryboard" />
+                                    </DataTrigger.ExitActions>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
                     <Run Text="{Binding DataContext.Status, Mode=OneWay, RelativeSource={RelativeSource AncestorType=Window}}" />
                     <Hyperlink Command="{Binding DataContext.OpenOutputFileCommand, RelativeSource={RelativeSource AncestorType=Window}}"
-                               ToolTip="{Binding DataContext.OutputFilePath, RelativeSource={RelativeSource AncestorType=Window}}">
+                               ToolTip="{Binding DataContext.OutputFilePath, RelativeSource={RelativeSource AncestorType=Window}}"
+                               FontSize="14" FontWeight="SemiBold">
                         <Hyperlink.Style>
                             <Style TargetType="Hyperlink">
-                                <Setter Property="Foreground" Value="{StaticResource Accent}" />
+                                <Setter Property="Foreground">
+                                    <Setter.Value>
+                                        <SolidColorBrush Color="#0F62B0" />
+                                    </Setter.Value>
+                                </Setter>
                                 <Style.Triggers>
                                     <DataTrigger Binding="{Binding DataContext.HasOutputFile, RelativeSource={RelativeSource AncestorType=Window}}" Value="False">
                                         <Setter Property="IsEnabled" Value="False" />
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding DataContext.StatusFlash, RelativeSource={RelativeSource AncestorType=Window}}" Value="True">
+                                        <DataTrigger.EnterActions>
+                                            <BeginStoryboard x:Name="FlashLinkStoryboard">
+                                                <Storyboard RepeatBehavior="Forever">
+                                                    <ColorAnimation Storyboard.TargetProperty="Foreground.Color"
+                                                                    To="#99ccff" Duration="0:0:1.25" AutoReverse="True" />
+                                                </Storyboard>
+                                            </BeginStoryboard>
+                                        </DataTrigger.EnterActions>
+                                        <DataTrigger.ExitActions>
+                                            <RemoveStoryboard BeginStoryboardName="FlashLinkStoryboard" />
+                                        </DataTrigger.ExitActions>
                                     </DataTrigger>
                                 </Style.Triggers>
                             </Style>

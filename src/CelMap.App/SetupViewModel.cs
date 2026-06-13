@@ -45,6 +45,8 @@ public sealed partial class SetupViewModel : ObservableObject
     private string? _selectedSourceSheet;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(SourceRowCountDisplay))]
+    [NotifyPropertyChangedFor(nameof(SourceHeaderPreview))]
     private int _sourceHeaderRow = 1;   // 1-based for the user; →0-based for Core
 
     public ObservableCollection<string> SourceHeaderPreview { get; } = new();
@@ -72,7 +74,7 @@ public sealed partial class SetupViewModel : ObservableObject
     private int? _targetRowCount;
 
     public string SourceRowCountDisplay => SourceRowCount.HasValue && !string.IsNullOrEmpty(SourceFilePath) && !string.IsNullOrEmpty(SelectedSourceSheet)
-        ? $"({SourceRowCount} rows)"
+        ? $"({Math.Max(0, SourceRowCount.Value - SourceHeaderRow)} rows)"
         : string.Empty;
 
     public string TargetRowCountDisplay => TargetRowCount.HasValue && !string.IsNullOrEmpty(TargetFilePath) && !string.IsNullOrEmpty(SelectedTargetSheet)
@@ -209,12 +211,25 @@ public sealed partial class SetupViewModel : ObservableObject
             // the window stays responsive.
             var (sheetNames, sheetData) = await Task.Run(() =>
             {
-                var names = _reader.GetSheetNames(path, _sourcePassword);
-                string first = names.FirstOrDefault() ?? "";
-                SheetData? data = first.Length == 0
-                    ? null
-                    : _reader.ReadSheet(path, first, _sourcePassword);
-                return (names, data);
+                var allNames = _reader.GetSheetNames(path, _sourcePassword);
+                var validNames = new List<string>();
+                SheetData? firstData = null;
+
+                foreach (var name in allNames)
+                {
+                    var data = _reader.ReadSheet(path, name, _sourcePassword);
+                    if (data.RowCount > 0)
+                    {
+                        int headerRow0 = CelMap.Core.HeaderRowDetector.Detect(data);
+                        int headerRow1Based = headerRow0 + 1;
+                        if (data.RowCount - headerRow1Based > 0)
+                        {
+                            validNames.Add(name);
+                            firstData ??= data;
+                        }
+                    }
+                }
+                return ((System.Collections.Generic.IReadOnlyList<string>)validNames, firstData);
             });
 
             SourceFilePath = path;

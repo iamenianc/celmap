@@ -74,6 +74,11 @@ public sealed partial class MappingRowViewModel : ObservableObject
     [ObservableProperty]
     private bool _linkedSourceIsEmpty;
 
+    /// <summary>True while the user is hovering the partner column on the other grid — used to
+    /// flash the link so you can see, by content, what's mapped to what.</summary>
+    [ObservableProperty]
+    private bool _isHoverHighlighted;
+
     public bool IsLocked
     {
         get
