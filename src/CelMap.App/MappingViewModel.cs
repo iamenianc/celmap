@@ -21,6 +21,9 @@ public sealed partial class MappingViewModel : ObservableObject
     public ObservableCollection<SourceColumnViewModel> SourceColumns { get; } = new();
     public ObservableCollection<MappingRowViewModel> Rows { get; } = new();
 
+    /// <summary>True once a match has populated the grid; gates the match-quality footer.</summary>
+    public bool HasMatched => Rows.Count > 0;
+
     public int LinkedCount => Rows.Count(r => r.IsLinked && !r.IsHidden);
     public int SourceMappedCount => SourceColumns.Count(s => s.IsLinked);
     public int SourceUnmappedCount => SourceColumns.Count(s => !s.IsLinked);
@@ -278,6 +281,7 @@ public sealed partial class MappingViewModel : ObservableObject
     private void AfterMappingEdit()
     {
         RefreshSourceLinkFlags();
+        OnPropertyChanged(nameof(HasMatched));
         OnPropertyChanged(nameof(LinkedCount));
         OnPropertyChanged(nameof(SourceMappedCount));
         OnPropertyChanged(nameof(SourceUnmappedCount));

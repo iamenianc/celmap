@@ -24,7 +24,7 @@ public sealed partial class ParametersViewModel : ObservableObject
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsParametersValid))]
-    private DateTime? _reviewEnd = DateTime.Today.AddYears(1).AddDays(-1);
+    private DateTime? _reviewEnd = new DateTime(DateTime.Today.Year, 12, 31);
 
     [ObservableProperty]
     private bool _defaultCoverGSC;
@@ -115,7 +115,7 @@ public sealed partial class ParametersViewModel : ObservableObject
     {
         if (value is DateTime start)
         {
-            ReviewEnd = start.AddYears(1).AddDays(-1);
+            ReviewEnd = new DateTime(start.Year, 12, 31);
         }
     }
 }
