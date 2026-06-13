@@ -37,7 +37,7 @@ public sealed partial class MappingViewModel : ObservableObject
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(VisibleSourceColumns))]
-    private bool _hideEmptySources;
+    private bool _hideEmptySources = true;
 
     public IEnumerable<SourceColumnViewModel> VisibleSourceColumns =>
         HideEmptySources ? SourceColumns.Where(s => !s.IsEmpty) : SourceColumns;
@@ -67,6 +67,21 @@ public sealed partial class MappingViewModel : ObservableObject
 
     public IEnumerable<SourceColumnViewModel> PickableSourceColumns =>
         SourceColumns.Where(s => !s.IsEmpty && !string.IsNullOrWhiteSpace(s.Label));
+
+    public IEnumerable<SourceColumnViewModel> AvailableSourceColumns
+    {
+        get
+        {
+            var active = Rows.FirstOrDefault(r => r.IsPickerOpen);
+            int? currentIdx = active?.LinkedSource?.ColumnIndex;
+
+            return SourceColumns.Where(s =>
+                !s.IsEmpty &&
+                !string.IsNullOrWhiteSpace(s.Label) &&
+                (!s.IsLinked || s.Column.ColumnIndex == currentIdx)
+            );
+        }
+    }
 
     // ====================================================================== //
     //  History (Undo / Redo)                                                //
@@ -248,13 +263,18 @@ public sealed partial class MappingViewModel : ObservableObject
             if (other.IsPickerOpen && !ReferenceEquals(other, row))
                 other.IsPickerOpen = false;
         row.IsPickerOpen = true;
+        OnPropertyChanged(nameof(AvailableSourceColumns));
     }
 
     public bool IsAnyPickerOpen => Rows.Any(r => r.IsPickerOpen);
 
     public void ClosePicker(MappingRowViewModel? row)
     {
-        if (row is not null) row.IsPickerOpen = false;
+        if (row is not null)
+        {
+            row.IsPickerOpen = false;
+            OnPropertyChanged(nameof(AvailableSourceColumns));
+        }
     }
 
     public void SetHidden(MappingRowViewModel? row, bool hidden, Action<string> showStatus)
@@ -293,6 +313,7 @@ public sealed partial class MappingViewModel : ObservableObject
         OnPropertyChanged(nameof(FuzzyCount));
         OnPropertyChanged(nameof(VisibleSourceColumns));
         OnPropertyChanged(nameof(PickableSourceColumns));
+        OnPropertyChanged(nameof(AvailableSourceColumns));
         OnPropertyChanged(nameof(VisibleRows));
     }
 

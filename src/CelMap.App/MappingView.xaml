@@ -9,9 +9,9 @@
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />   <!-- top bar -->
-            <RowDefinition Height="*" />      <!-- source grid (split 50/50) -->
+            <RowDefinition Height="2*" />     <!-- source grid -->
             <RowDefinition Height="Auto" />   <!-- splitter -->
-            <RowDefinition Height="*" />      <!-- target grid (split 50/50) -->
+            <RowDefinition Height="3*" />     <!-- target grid -->
             <RowDefinition Height="Auto" />   <!-- status -->
         </Grid.RowDefinitions>
 
@@ -52,30 +52,17 @@
                         </StackPanel>
                     </Border>
 
-                    <!-- Column mapping counters -->
-                    <Border Background="#F2F5FA" CornerRadius="6" BorderBrush="{StaticResource Hairline}" BorderThickness="1" Padding="8,4" Margin="0,2,8,2">
-                        <StackPanel Orientation="Horizontal">
-                            <TextBlock Text="Source: " Foreground="{StaticResource MutedText}" FontSize="11" />
-                            <TextBlock Text="{Binding SourceMappedCount}" Foreground="#16A34A" FontWeight="Bold" FontSize="11" />
-                            <TextBlock Text=" mapped, " Foreground="{StaticResource MutedText}" FontSize="11" />
-                            <TextBlock Text="{Binding SourceUnmappedCount}" Foreground="{StaticResource MutedText}" FontWeight="Bold" FontSize="11" />
-                            <TextBlock Text=" unmapped" Foreground="{StaticResource MutedText}" FontSize="11" />
-                        </StackPanel>
-                    </Border>
-                    <Border Background="#F2F5FA" CornerRadius="6" BorderBrush="{StaticResource Hairline}" BorderThickness="1" Padding="8,4" Margin="0,2,8,2">
-                        <StackPanel Orientation="Horizontal">
-                            <TextBlock Text="Target: " Foreground="{StaticResource MutedText}" FontSize="11" />
-                            <TextBlock Text="{Binding TargetMappedCount}" Foreground="#16A34A" FontWeight="Bold" FontSize="11" />
-                            <TextBlock Text=" mapped, " Foreground="{StaticResource MutedText}" FontSize="11" />
-                            <TextBlock Text="{Binding TargetUnmappedCount}" Foreground="#B45309" FontWeight="Bold" FontSize="11" />
-                            <TextBlock Text=" unmapped" Foreground="{StaticResource MutedText}" FontSize="11" />
-                        </StackPanel>
-                    </Border>
                 </WrapPanel>
 
-                <Button Grid.Column="2" Content="Execute ▸" Style="{StaticResource PrimaryButton}"
-                        MinWidth="140" Command="{Binding DataContext.WriteCommand, RelativeSource={RelativeSource AncestorType=Window}}"
-                        ToolTip="Write every mapped, non-hidden column to the output copy" />
+                <!-- Scale density dropdown -->
+                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" Margin="12,0,0,0">
+                    <TextBlock Text="Aa" FontSize="11" Foreground="{StaticResource MutedText}"
+                               VerticalAlignment="Center" Margin="0,0,5,0" />
+                    <ComboBox Width="110" FontSize="11"
+                              ItemsSource="{Binding DataContext.DensityOptions, RelativeSource={RelativeSource AncestorType=Window}}"
+                              SelectedItem="{Binding DataContext.UiDensity, RelativeSource={RelativeSource AncestorType=Window}}"
+                              ToolTip="Display size — Large for easier reading, Compact for more on screen" />
+                </StackPanel>
             </Grid>
         </Border>
 
@@ -85,6 +72,23 @@
             <DockPanel>
                 <TextBlock DockPanel.Dock="Top" Text="SOURCE  —  what you're copying from"
                            Style="{StaticResource SectionHeader}" Margin="14,8,14,4" />
+                
+                <!-- Source footer / badge -->
+                <Border DockPanel.Dock="Bottom" Background="{StaticResource PanelBg}"
+                        BorderBrush="{StaticResource Hairline}" BorderThickness="0,1,0,0" Padding="14,6">
+                    <StackPanel Orientation="Horizontal">
+                        <Border Background="#F2F5FA" CornerRadius="6" BorderBrush="{StaticResource Hairline}" BorderThickness="1" Padding="8,4">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="Source: " Foreground="{StaticResource MutedText}" FontSize="11" />
+                                <TextBlock Text="{Binding SourceMappedCount}" Foreground="#16A34A" FontWeight="Bold" FontSize="11" />
+                                <TextBlock Text=" mapped, " Foreground="{StaticResource MutedText}" FontSize="11" />
+                                <TextBlock Text="{Binding SourceUnmappedCount}" Foreground="{StaticResource MutedText}" FontWeight="Bold" FontSize="11" />
+                                <TextBlock Text=" unmapped" Foreground="{StaticResource MutedText}" FontSize="11" />
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </Border>
+
                 <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
                     <ItemsControl ItemsSource="{Binding VisibleSourceColumns}">
                         <ItemsControl.ItemsPanel>
@@ -295,33 +299,14 @@
                                                     <TextBlock Text="Pick a source column" FontSize="10"
                                                                Foreground="{StaticResource MutedText}"
                                                                HorizontalAlignment="Center" Margin="0,3" />
-                                                    <TextBox FontSize="11" Margin="3,0,3,3" Padding="3,2"
-                                                             TextChanged="PickerFilter_TextChanged"
-                                                             ToolTip="Type to filter the source list" />
-                                                    <ScrollViewer MaxHeight="420" VerticalScrollBarVisibility="Auto"
-                                                                  HorizontalScrollBarVisibility="Disabled">
-                                                        <ItemsControl ItemsSource="{Binding DataContext.PickableSourceColumns, RelativeSource={RelativeSource AncestorType=Window}}">
-                                                            <ItemsControl.ItemTemplate>
-                                                                <DataTemplate>
-                                                                    <Border Cursor="Hand"
-                                                                            Tag="{Binding}" MouseLeftButtonUp="PickerOption_Click">
-                                                                        <Border.Style>
-                                                                            <Style TargetType="Border" BasedOn="{StaticResource PickerOption}">
-                                                                                <Style.Triggers>
-                                                                                    <Trigger Property="IsMouseOver" Value="True">
-                                                                                        <Setter Property="Background" Value="#F0F6FF" />
-                                                                                    </Trigger>
-                                                                                </Style.Triggers>
-                                                                            </Style>
-                                                                        </Border.Style>
-                                                                        <TextBlock Text="{Binding Label}" FontSize="12"
-                                                                                   Foreground="{StaticResource InkText}"
-                                                                                   TextTrimming="CharacterEllipsis" ToolTip="{Binding Label}" />
-                                                                    </Border>
-                                                                </DataTemplate>
-                                                            </ItemsControl.ItemTemplate>
-                                                        </ItemsControl>
-                                                    </ScrollViewer>
+                                                    <ComboBox FontSize="11" Margin="3"
+                                                              ItemsSource="{Binding DataContext.AvailableSourceColumns, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                              SelectedValue="{Binding LinkedSource, Mode=OneWay}"
+                                                              SelectedValuePath="Column"
+                                                              DisplayMemberPath="Label"
+                                                              SelectionChanged="SourceComboBox_SelectionChanged"
+                                                              IsDropDownOpen="{Binding IsPickerOpen, Mode=TwoWay}"
+                                                              ToolTip="Select a source column" />
                                                 </StackPanel>
                                             </Border>
                                         </Grid>
@@ -357,6 +342,16 @@
                 <StackPanel DockPanel.Dock="Left" Orientation="Horizontal" VerticalAlignment="Center"
                             Margin="0,0,12,0"
                             Visibility="{Binding HasMatched, Converter={StaticResource BoolToVis}}">
+                    <!-- Target mapped counter badge -->
+                    <Border Background="#F2F5FA" CornerRadius="6" BorderBrush="{StaticResource Hairline}" BorderThickness="1" Padding="8,4" Margin="0,0,12,0">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="Target: " Foreground="{StaticResource MutedText}" FontSize="11" />
+                            <TextBlock Text="{Binding TargetMappedCount}" Foreground="#16A34A" FontWeight="Bold" FontSize="11" />
+                            <TextBlock Text=" mapped, " Foreground="{StaticResource MutedText}" FontSize="11" />
+                            <TextBlock Text="{Binding TargetUnmappedCount}" Foreground="#B45309" FontWeight="Bold" FontSize="11" />
+                            <TextBlock Text=" unmapped" Foreground="{StaticResource MutedText}" FontSize="11" />
+                        </StackPanel>
+                    </Border>
                     <Border Background="{StaticResource AutoTint}" CornerRadius="4" Padding="7,2" Margin="0,0,5,0">
                         <TextBlock FontSize="11" FontWeight="SemiBold" Foreground="#15803D"
                                    Text="{Binding ExactCount, StringFormat={}exact {0}}"
@@ -378,15 +373,10 @@
                                    ToolTip="Fuzzy matches (90%+) — worth a glance; their headers are tinted amber" />
                     </Border>
                 </StackPanel>
-                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center"
-                            Margin="12,0,0,0">
-                    <TextBlock Text="Aa" FontSize="11" Foreground="{StaticResource MutedText}"
-                               VerticalAlignment="Center" Margin="0,0,5,0" />
-                    <ComboBox Width="110" FontSize="11"
-                              ItemsSource="{Binding DataContext.DensityOptions, RelativeSource={RelativeSource AncestorType=Window}}"
-                              SelectedItem="{Binding DataContext.UiDensity, RelativeSource={RelativeSource AncestorType=Window}}"
-                              ToolTip="Display size — Large for easier reading, Compact for more on screen" />
-                </StackPanel>
+                <!-- Execute button -->
+                <Button DockPanel.Dock="Right" Content="Execute ▸" Style="{StaticResource PrimaryButton}"
+                        MinWidth="140" Margin="12,0,0,0" Command="{Binding DataContext.WriteCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                        ToolTip="Write every mapped, non-hidden column to the output copy" />
                 <TextBlock TextWrapping="Wrap" VerticalAlignment="Center"
                            Foreground="{StaticResource InkText}" FontSize="12">
                     <Run Text="{Binding DataContext.Status, Mode=OneWay, RelativeSource={RelativeSource AncestorType=Window}}" />

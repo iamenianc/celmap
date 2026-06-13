@@ -49,8 +49,8 @@ public sealed partial class MainViewModel : ObservableObject
         _writer = new TargetWriter(_reader);
 
         Parameters = new ParametersViewModel();
-        Setup = new SetupViewModel(_reader, msg => Status = msg, ResetGrid);
         Mapping = new MappingViewModel();
+        Setup = new SetupViewModel(_reader, msg => Status = msg, ResetGrid);
 
         OutputDirectory = @"C:\temp";
 

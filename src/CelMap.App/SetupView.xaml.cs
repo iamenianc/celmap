@@ -39,10 +39,10 @@ public partial class SetupView : UserControl
         if (sender is Border b) b.BorderBrush = (Brush)FindResource("Hairline");
     }
 
-    private void SourceDropZone_Drop(object sender, DragEventArgs e)
+    private async void SourceDropZone_Drop(object sender, DragEventArgs e)
     {
         DropZone_DragLeave(sender, e);
-        if (FirstDroppedFile(e) is { } path) ViewModel.LoadSourceFile(path);
+        if (FirstDroppedFile(e) is { } path) await ViewModel.LoadSourceFileAsync(path);
     }
 
     private void SourceDropZone_Click(object sender, MouseButtonEventArgs e)

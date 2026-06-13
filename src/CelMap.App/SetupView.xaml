@@ -11,6 +11,7 @@
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
         <Grid Grid.Row="0" Margin="0,0,0,10">
@@ -93,7 +94,14 @@
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
                         <StackPanel Grid.Column="0">
-                            <Label Content="Sheet" />
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Bottom">
+                                <Label Content="Sheet" />
+                                <TextBlock Text="{Binding SourceRowCountDisplay}"
+                                           Foreground="{StaticResource MutedText}"
+                                           FontSize="11"
+                                           VerticalAlignment="Center"
+                                           Margin="6,0,0,3" />
+                            </StackPanel>
                             <ComboBox ItemsSource="{Binding SourceSheets}"
                                       SelectedItem="{Binding SelectedSourceSheet}" />
                         </StackPanel>
@@ -170,7 +178,14 @@
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
                         <StackPanel Grid.Column="0">
-                            <Label Content="Sheet" />
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Bottom">
+                                <Label Content="Sheet" />
+                                <TextBlock Text="{Binding TargetRowCountDisplay}"
+                                           Foreground="{StaticResource MutedText}"
+                                           FontSize="11"
+                                           VerticalAlignment="Center"
+                                           Margin="6,0,0,3" />
+                            </StackPanel>
                             <ComboBox ItemsSource="{Binding TargetSheets}"
                                       SelectedItem="{Binding SelectedTargetSheet}" />
                         </StackPanel>
@@ -216,5 +231,32 @@
                     MinWidth="160" Command="{Binding DataContext.MatchCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                     ToolTip="Auto-map the confident columns and open the mapping screen" />
         </Grid>
+
+        <!-- Source-load progress: a large determinate bar shown while the workbook DOM
+             loads. The percentage is an estimate derived from file size (ClosedXML gives
+             no real progress), snapping to 100% when the load actually completes. -->
+        <Border Grid.Row="3" Margin="0,12,0,0" Padding="14,12"
+                Background="#EEF3FB" CornerRadius="6"
+                BorderBrush="{StaticResource Hairline}" BorderThickness="1"
+                Visibility="{Binding IsLoadingSource, Converter={StaticResource BoolToVis}}">
+            <StackPanel>
+                <Grid Margin="0,0,0,6">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="0" Text="{Binding LoadProgressText}"
+                               FontSize="13" FontWeight="SemiBold"
+                               Foreground="{StaticResource InkText}" VerticalAlignment="Center" />
+                    <TextBlock Grid.Column="1" VerticalAlignment="Center"
+                               FontSize="13" Foreground="{StaticResource MutedText}"
+                               Text="{Binding LoadProgress, StringFormat='{}{0:0}%'}" />
+                </Grid>
+                <ProgressBar Height="22" Minimum="0" Maximum="100"
+                             Value="{Binding LoadProgress}" />
+                <TextBlock Text="Estimated — large files take a few seconds to open."
+                           FontSize="11" Foreground="{StaticResource MutedText}" Margin="0,5,0,0" />
+            </StackPanel>
+        </Border>
     </Grid>
 </UserControl>

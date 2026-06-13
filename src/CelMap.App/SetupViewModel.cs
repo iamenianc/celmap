@@ -1,7 +1,10 @@
 using System;
 using System.Collections.ObjectModel;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Threading.Tasks;
+using System.Windows.Threading;
 using CelMap.Core;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -22,6 +25,7 @@ public sealed partial class SetupViewModel : ObservableObject
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(SourceFileName))]
+    [NotifyPropertyChangedFor(nameof(SourceRowCountDisplay))]
     private string? _sourceFilePath;
 
     public string? SourceFileName =>
@@ -37,6 +41,7 @@ public sealed partial class SetupViewModel : ObservableObject
     public ObservableCollection<string> SourceSheets { get; } = new();
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(SourceRowCountDisplay))]
     private string? _selectedSourceSheet;
 
     [ObservableProperty]
@@ -46,6 +51,7 @@ public sealed partial class SetupViewModel : ObservableObject
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(TargetFileName))]
+    [NotifyPropertyChangedFor(nameof(TargetRowCountDisplay))]
     private string? _targetFilePath;
 
     public string? TargetFileName =>
@@ -54,7 +60,24 @@ public sealed partial class SetupViewModel : ObservableObject
     public ObservableCollection<string> TargetSheets { get; } = new();
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(TargetRowCountDisplay))]
     private string? _selectedTargetSheet;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(SourceRowCountDisplay))]
+    private int? _sourceRowCount;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(TargetRowCountDisplay))]
+    private int? _targetRowCount;
+
+    public string SourceRowCountDisplay => SourceRowCount.HasValue && !string.IsNullOrEmpty(SourceFilePath) && !string.IsNullOrEmpty(SelectedSourceSheet)
+        ? $"({SourceRowCount} rows)"
+        : string.Empty;
+
+    public string TargetRowCountDisplay => TargetRowCount.HasValue && !string.IsNullOrEmpty(TargetFilePath) && !string.IsNullOrEmpty(SelectedTargetSheet)
+        ? $"({TargetRowCount} rows)"
+        : string.Empty;
 
     [ObservableProperty]
     private int _targetHeaderRow = 1;
@@ -69,6 +92,35 @@ public sealed partial class SetupViewModel : ObservableObject
     [ObservableProperty]
     private TargetChoice? _selectedTargetChoice;
 
+    // ---- Source-load progress -------------------------------------------------
+    // ClosedXML loads the whole workbook into an in-memory DOM in one opaque,
+    // synchronous call, so there is no real progress to report. Instead we estimate
+    // the duration from the file size (load time scales roughly with bytes), animate
+    // the bar to ~95% over that estimate, then snap to 100% when the load returns.
+
+    [ObservableProperty]
+    private bool _isLoadingSource;
+
+    [ObservableProperty]
+    private double _loadProgress;   // 0–100
+
+    [ObservableProperty]
+    private string _loadProgressText = "";
+
+    // Roughly: ~250 ms fixed overhead + ~0.69 ms per KB. The per-KB factor was raised ~25%
+    // after testing showed the bar ran ~20% too fast. The estimate only drives the
+    // animation, never the data.
+    private const double EstimateBaseMs = 250;
+    private const double EstimateMsPerKilobyte = 0.69;
+    private const double EstimateCeilingPercent = 95;
+    // The bar advances in chunky steps (20, 40, 60, 80) rather than smoothly.
+    private const double ProgressStepPercent = 20;
+
+    private DispatcherTimer? _progressTimer;
+    private Stopwatch? _progressStopwatch;
+    private double _estimatedLoadMs;
+    private bool _suppressSourceRefresh;
+
     public SetupViewModel(IWorkbookReader reader, Action<string> updateStatus, Action resetGrid)
     {
         _reader = reader;
@@ -76,6 +128,7 @@ public sealed partial class SetupViewModel : ObservableObject
         _resetGrid = resetGrid;
 
         LoadTargetChoices();
+        SelectedTargetChoice = TargetChoices.FirstOrDefault();
     }
 
     partial void OnSelectedTargetChoiceChanged(TargetChoice? value)
@@ -85,9 +138,9 @@ public sealed partial class SetupViewModel : ObservableObject
     }
 
     [RelayCommand]
-    private void BrowseSource()
+    private async Task BrowseSource()
     {
-        if (PickExcelFile() is { } path) LoadSourceFile(path);
+        if (PickExcelFile() is { } path) await LoadSourceFileAsync(path);
     }
 
     [RelayCommand]
@@ -121,7 +174,7 @@ public sealed partial class SetupViewModel : ObservableObject
         catch (UnauthorizedAccessException) { }
     }
 
-    public void LoadSourceFile(string path)
+    public async Task LoadSourceFileAsync(string path)
     {
         if (!IsValidSourceFile(path, out string rejection))
         {
@@ -133,6 +186,8 @@ public sealed partial class SetupViewModel : ObservableObject
 
         try
         {
+            // Cheap signature check + optional password prompt stay on the UI thread:
+            // the prompt is modal, and IsEncrypted only reads 8 bytes.
             if (_reader.IsEncrypted(path) && !TryUnlockSource(path))
             {
                 _updateStatus("Source is password-protected — load cancelled.");
@@ -145,10 +200,96 @@ public sealed partial class SetupViewModel : ObservableObject
             return;
         }
 
-        SourceFilePath = path;
-        LoadSheets(path, SourceSheets, s => SelectedSourceSheet = s, _sourcePassword);
-        _resetGrid();
-        RefreshSourceSetup(detect: true);
+        long fileBytes = SafeFileLength(path);
+        StartProgress(fileBytes);
+        try
+        {
+            // The expensive part — building the ClosedXML DOM and reading the sheet for
+            // header detection — runs on a background thread so the bar can animate and
+            // the window stays responsive.
+            var (sheetNames, sheetData) = await Task.Run(() =>
+            {
+                var names = _reader.GetSheetNames(path, _sourcePassword);
+                string first = names.FirstOrDefault() ?? "";
+                SheetData? data = first.Length == 0
+                    ? null
+                    : _reader.ReadSheet(path, first, _sourcePassword);
+                return (names, data);
+            });
+
+            SourceFilePath = path;
+
+            _suppressSourceRefresh = true;
+            try
+            {
+                SourceSheets.Clear();
+                foreach (var name in sheetNames) SourceSheets.Add(name);
+                SelectedSourceSheet = SourceSheets.FirstOrDefault();
+            }
+            finally
+            {
+                _suppressSourceRefresh = false;
+            }
+
+            _resetGrid();
+            ApplyHeaderPreview(sheetData, detect: true,
+                row => SourceHeaderRow = row, SourceHeaderRow - 1, SourceHeaderPreview);
+            SourceRowCount = sheetData?.RowCount ?? 0;
+        }
+        catch (Exception ex)
+        {
+            _updateStatus(FriendlyError(ex));
+        }
+        finally
+        {
+            FinishProgress();
+        }
+    }
+
+    private static long SafeFileLength(string path)
+    {
+        try { return new FileInfo(path).Length; }
+        catch { return 0; }
+    }
+
+    // ---- Estimated progress animation ----------------------------------------
+
+    private void StartProgress(long fileBytes)
+    {
+        _estimatedLoadMs = EstimateBaseMs + (fileBytes / 1024.0) * EstimateMsPerKilobyte;
+        LoadProgress = 0;
+        LoadProgressText = "Reading workbook…";
+        IsLoadingSource = true;
+
+        _progressStopwatch = Stopwatch.StartNew();
+        _progressTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(50) };
+        _progressTimer.Tick += OnProgressTick;
+        _progressTimer.Start();
+    }
+
+    private void OnProgressTick(object? sender, EventArgs e)
+    {
+        if (_progressStopwatch is null || _estimatedLoadMs <= 0) return;
+        double fraction = _progressStopwatch.Elapsed.TotalMilliseconds / _estimatedLoadMs;
+        double estimated = fraction * EstimateCeilingPercent;
+        // Quantise to 20% steps (20, 40, 60, 80) so the bar jumps in chunks. We never
+        // reach the ceiling from the estimate alone — the real completion snaps us to
+        // 100%, so we never claim "done" prematurely.
+        double stepped = Math.Floor(estimated / ProgressStepPercent) * ProgressStepPercent;
+        LoadProgress = Math.Min(EstimateCeilingPercent, stepped);
+    }
+
+    private void FinishProgress()
+    {
+        if (_progressTimer is not null)
+        {
+            _progressTimer.Stop();
+            _progressTimer.Tick -= OnProgressTick;
+            _progressTimer = null;
+        }
+        _progressStopwatch = null;
+        LoadProgress = 100;
+        IsLoadingSource = false;
     }
 
     private bool TryUnlockSource(string path)
@@ -258,10 +399,12 @@ public sealed partial class SetupViewModel : ObservableObject
         if (string.IsNullOrWhiteSpace(SourceFilePath) || string.IsNullOrWhiteSpace(SelectedSourceSheet))
         {
             SourceHeaderPreview.Clear();
+            SourceRowCount = 0;
             return;
         }
-        TryReadHeaderPreview(SourceFilePath!, SelectedSourceSheet!, detect,
+        var data = TryReadHeaderPreview(SourceFilePath!, SelectedSourceSheet!, detect,
             row => SourceHeaderRow = row, SourceHeaderRow - 1, SourceHeaderPreview, _sourcePassword);
+        SourceRowCount = data?.RowCount ?? 0;
     }
 
     public void RefreshTargetSetup(bool detect)
@@ -269,32 +412,47 @@ public sealed partial class SetupViewModel : ObservableObject
         if (string.IsNullOrWhiteSpace(TargetFilePath) || string.IsNullOrWhiteSpace(SelectedTargetSheet))
         {
             TargetHeaderPreview.Clear();
+            TargetRowCount = 0;
             return;
         }
-        TryReadHeaderPreview(TargetFilePath!, SelectedTargetSheet!, detect,
+        var data = TryReadHeaderPreview(TargetFilePath!, SelectedTargetSheet!, detect,
             row => TargetHeaderRow = row, TargetHeaderRow - 1, TargetHeaderPreview);
+        TargetRowCount = data?.RowCount ?? 0;
     }
 
-    private void TryReadHeaderPreview(string path, string sheet, bool detect,
+    private SheetData? TryReadHeaderPreview(string path, string sheet, bool detect,
         Action<int> setHeaderRow1Based, int currentHeaderRow0, ObservableCollection<string> preview,
         string? password = null)
     {
-        preview.Clear();
         try
         {
             var data = _reader.ReadSheet(path, sheet, password);
-            int headerRow0 = detect ? HeaderRowDetector.Detect(data) : currentHeaderRow0;
-            if (detect) setHeaderRow1Based(headerRow0 + 1);
-            else headerRow0 = Math.Clamp(headerRow0, 0, Math.Max(0, data.RowCount - 1));
-
-            var headers = HeaderExtractor.Extract(data, headerRow0);
-            foreach (var h in headers.Take(10))
-                preview.Add(string.IsNullOrWhiteSpace(h.Label) ? "(blank)" : h.Label);
+            ApplyHeaderPreview(data, detect, setHeaderRow1Based, currentHeaderRow0, preview);
+            return data;
         }
         catch (Exception ex)
         {
+            preview.Clear();
             _updateStatus(FriendlyError(ex));
+            return null;
         }
+    }
+
+    /// <summary>Render the header preview from already-loaded sheet data, avoiding a second
+    /// (slow) workbook read when the data is already in hand from the initial load.</summary>
+    private void ApplyHeaderPreview(SheetData? data, bool detect,
+        Action<int> setHeaderRow1Based, int currentHeaderRow0, ObservableCollection<string> preview)
+    {
+        preview.Clear();
+        if (data is null) return;
+
+        int headerRow0 = detect ? HeaderRowDetector.Detect(data) : currentHeaderRow0;
+        if (detect) setHeaderRow1Based(headerRow0 + 1);
+        else headerRow0 = Math.Clamp(headerRow0, 0, Math.Max(0, data.RowCount - 1));
+
+        var headers = HeaderExtractor.Extract(data, headerRow0);
+        foreach (var h in headers.Take(10))
+            preview.Add(string.IsNullOrWhiteSpace(h.Label) ? "(blank)" : h.Label);
     }
 
     private static string FriendlyError(Exception ex)
@@ -310,6 +468,12 @@ public sealed partial class SetupViewModel : ObservableObject
     protected override void OnPropertyChanged(System.ComponentModel.PropertyChangedEventArgs e)
     {
         base.OnPropertyChanged(e);
+
+        // During the async source load we set SelectedSourceSheet ourselves and render the
+        // preview from data already in hand — suppress the auto-refresh so we don't kick off
+        // a second synchronous ReadSheet on the UI thread (the very freeze we're removing).
+        if (_suppressSourceRefresh && e.PropertyName == nameof(SelectedSourceSheet))
+            return;
 
         if (e.PropertyName == nameof(SelectedSourceSheet))
             RefreshSourceSetup(detect: true);

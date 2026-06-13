@@ -98,39 +98,15 @@ public partial class MappingView : UserControl
         ViewModel.SetHidden((sender as FrameworkElement)?.DataContext as MappingRowViewModel, true, SetStatus);
     }
 
-    // Type-ahead filter above the picker's source list. Each picker filters only its own
-    // list (the sibling ItemsControl), so two open pickers never fight over one view.
-    private void PickerFilter_TextChanged(object sender, TextChangedEventArgs e)
+    private void SourceComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        if (sender is not TextBox tb || VisualTreeHelper.GetParent(tb) is not DependencyObject panel) return;
-        if (FindDescendant<ItemsControl>(panel) is not { } list) return;
-
-        string query = tb.Text.Trim();
-        list.ItemsSource = string.IsNullOrEmpty(query)
-            ? ViewModel.PickableSourceColumns.ToList()
-            : ViewModel.PickableSourceColumns
-                .Where(s => s.Label.Contains(query, StringComparison.OrdinalIgnoreCase))
-                .ToList();
-    }
-
-    private static T? FindDescendant<T>(DependencyObject root) where T : DependencyObject
-    {
-        for (int i = 0; i < VisualTreeHelper.GetChildrenCount(root); i++)
+        if (sender is not ComboBox cb || cb.SelectedItem is not SourceColumnViewModel source) return;
+        var row = FindRow(cb);
+        if (row is not null && row.LinkedSource != source.Column)
         {
-            var child = VisualTreeHelper.GetChild(root, i);
-            if (child is T match) return match;
-            if (FindDescendant<T>(child) is { } nested) return nested;
+            ViewModel.MapSlot(row, source);
+            ViewModel.ClosePicker(row);
         }
-        return null;
-    }
-
-    // Click a source option in the inline picker → map this slot to that source.
-    private void PickerOption_Click(object sender, MouseButtonEventArgs e)
-    {
-        var source = (sender as FrameworkElement)?.DataContext as SourceColumnViewModel;
-        var row = FindRow(sender as DependencyObject);
-        ViewModel.MapSlot(row, source);
-        e.Handled = true;
     }
 
     // Click the collapsed strip → show the column again.
