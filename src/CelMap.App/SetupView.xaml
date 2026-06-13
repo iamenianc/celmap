@@ -31,30 +31,46 @@
                            VerticalAlignment="Center" Margin="0,0,5,0" />
                 <ComboBox Width="110" FontSize="11"
                           ItemsSource="{Binding DataContext.DensityOptions, RelativeSource={RelativeSource AncestorType=Window}}"
-                          SelectedItem="{Binding DataContext.UiDensity, RelativeSource={RelativeSource AncestorType=Window}}" Margin="0,0,8,0"
+                          SelectedItem="{Binding DataContext.UiDensity, RelativeSource={RelativeSource AncestorType=Window}}"
                           ToolTip="Display size — Large for easier reading, Compact for more on screen" />
-                <Border Background="#F2F5FA" CornerRadius="6" BorderBrush="{StaticResource Hairline}" BorderThickness="1" Padding="8,4" Margin="0,0,8,0">
-                    <StackPanel Orientation="Horizontal">
-                        <TextBlock Text="Group: " Foreground="{StaticResource MutedText}" FontSize="11" />
-                        <TextBlock Text="{Binding DataContext.Parameters.GroupIdText, RelativeSource={RelativeSource AncestorType=Window}}" Foreground="{StaticResource InkText}" FontWeight="SemiBold" FontSize="11" Margin="0,0,8,0" />
-                        <TextBlock Text="Insurer: " Foreground="{StaticResource MutedText}" FontSize="11" />
-                        <TextBlock Text="{Binding DataContext.Parameters.InsurerIdText, RelativeSource={RelativeSource AncestorType=Window}}" Foreground="{StaticResource InkText}" FontWeight="SemiBold" FontSize="11" />
-                    </StackPanel>
-                </Border>
-                <Button Content="✎ Edit Parameters" Style="{StaticResource GhostButton}" Command="{Binding DataContext.BackToParametersCommand, RelativeSource={RelativeSource AncestorType=Window}}" />
             </StackPanel>
         </Grid>
 
-        <!-- Two drop-zones side by side -->
+        <!-- Three panels side by side: Parameters, Source, and Target -->
         <Grid Grid.Row="1">
             <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="280" />
+                <ColumnDefinition Width="14" />
                 <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="18" />
+                <ColumnDefinition Width="14" />
                 <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
 
+            <!-- PARAMETERS -->
+            <Border Grid.Column="0" Style="{StaticResource Card}" VerticalAlignment="Stretch">
+                <StackPanel>
+                    <TextBlock Text="GENERAL PARAMETERS" Style="{StaticResource SectionHeader}" />
+                    
+                    <StackPanel Margin="0,6,0,12">
+                        <Label Content="Group ID (Required)" Target="{Binding ElementName=GroupIdInput}" />
+                        <TextBox x:Name="GroupIdInput" Text="{Binding DataContext.Parameters.GroupIdText, RelativeSource={RelativeSource AncestorType=Window}, UpdateSourceTrigger=PropertyChanged}" />
+                        <TextBlock Text="Must be an integer" FontSize="11" Foreground="{StaticResource MutedText}" Margin="0,2,0,0" />
+                    </StackPanel>
+
+                    <StackPanel Margin="0,0,0,12">
+                        <Label Content="Review Start Date (Required)" />
+                        <DatePicker SelectedDate="{Binding DataContext.Parameters.ReviewStart, RelativeSource={RelativeSource AncestorType=Window}}" SelectedDateFormat="Short" />
+                    </StackPanel>
+
+                    <!-- Validation warning if not valid -->
+                    <StackPanel Visibility="{Binding DataContext.IsParametersValid, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BoolToVis}, ConverterParameter=invert}" Margin="0,10,0,0">
+                        <TextBlock Text="⚠ Enter a valid integer Group ID and a Review Start Date." Foreground="#DC2626" FontSize="11" TextWrapping="Wrap" />
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
             <!-- SOURCE -->
-            <Border Grid.Column="0" Style="{StaticResource Card}">
+            <Border Grid.Column="2" Style="{StaticResource Card}">
                 <StackPanel>
                     <TextBlock Text="SOURCE  ·  copy data FROM" Style="{StaticResource SectionHeader}" />
                     <Border x:Name="SourceDropZone" Style="{StaticResource DropZone}"
@@ -107,7 +123,7 @@
             </Border>
 
             <!-- TARGET -->
-            <Border Grid.Column="2" Style="{StaticResource Card}">
+            <Border Grid.Column="4" Style="{StaticResource Card}">
                 <StackPanel>
                     <TextBlock Text="TARGET  ·  copy data INTO  (a copy is written, original untouched)"
                                Style="{StaticResource SectionHeader}" TextTrimming="CharacterEllipsis" />

@@ -14,7 +14,7 @@ namespace CelMap.App;
 /// </summary>
 public sealed partial class MainViewModel : ObservableObject
 {
-    public const int SampleRowCount = 10;
+    public const int SampleRowCount = 20;
 
     private readonly IWorkbookReader _reader;
     private readonly IColumnMatcher _matcher;
@@ -59,7 +59,7 @@ public sealed partial class MainViewModel : ObservableObject
         {
             if (e.PropertyName == nameof(ParametersViewModel.IsParametersValid))
             {
-                ContinueToSetupCommand.NotifyCanExecuteChanged();
+                MatchCommand.NotifyCanExecuteChanged();
                 OnPropertyChanged(nameof(IsParametersValid));
             }
         };
@@ -98,33 +98,15 @@ public sealed partial class MainViewModel : ObservableObject
     // ====================================================================== //
 
     [ObservableProperty]
-    private bool _isOnParameters = true;
+    private bool _isOnParameters;
 
     [ObservableProperty]
-    private bool _isOnSetup;
+    private bool _isOnSetup = true;
 
     [ObservableProperty]
     private bool _isOnMapping;
 
     public bool IsParametersValid => Parameters.IsParametersValid;
-
-    private bool CanContinueToSetup => Parameters.CanContinueToSetup;
-
-    [RelayCommand(CanExecute = nameof(CanContinueToSetup))]
-    private void ContinueToSetup()
-    {
-        IsOnParameters = false;
-        IsOnSetup = true;
-        IsOnMapping = false;
-    }
-
-    [RelayCommand]
-    private void BackToParameters()
-    {
-        IsOnParameters = true;
-        IsOnSetup = false;
-        IsOnMapping = false;
-    }
 
     [RelayCommand]
     private void BackToSetup()
@@ -190,7 +172,8 @@ public sealed partial class MainViewModel : ObservableObject
         && !string.IsNullOrWhiteSpace(Setup.SourceFilePath)
         && !string.IsNullOrWhiteSpace(Setup.TargetFilePath)
         && !string.IsNullOrWhiteSpace(Setup.SelectedSourceSheet)
-        && !string.IsNullOrWhiteSpace(Setup.SelectedTargetSheet);
+        && !string.IsNullOrWhiteSpace(Setup.SelectedTargetSheet)
+        && Parameters.IsParametersValid;
 
     [RelayCommand(CanExecute = nameof(CanMatch))]
     private async Task MatchAsync()

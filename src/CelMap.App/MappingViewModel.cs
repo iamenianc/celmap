@@ -10,7 +10,7 @@ namespace CelMap.App;
 
 public sealed partial class MappingViewModel : ObservableObject
 {
-    private const int SampleRowCount = 10;
+    private const int SampleRowCount = 20;
 
     private SheetData? _sourceData;
     private int _matchedSrcHeaderRow;

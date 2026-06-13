@@ -27,9 +27,6 @@
         <!-- Each screen's DataContext is its own sub-ViewModel; Visibility stays bound to
              the MainViewModel via the Window so the sub-VM context doesn't break it. -->
 
-        <!-- Screen 0 — Parameters Setup -->
-        <local:ParametersView DataContext="{Binding Parameters}"
-                              Visibility="{Binding DataContext.IsOnParameters, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BoolToVis}}" />
 
         <!-- Screen 1 — Setup (compact) -->
         <local:SetupView DataContext="{Binding Setup}"
