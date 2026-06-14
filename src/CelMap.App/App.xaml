@@ -4,6 +4,13 @@
              xmlns:local="clr-namespace:CelMap.App"
              StartupUri="MainWindow.xaml">
     <Application.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <materialDesign:BundledTheme BaseTheme="Light" PrimaryColor="Green" SecondaryColor="Lime"
+                                             xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes" />
+                <ResourceDictionary Source="pack://application:,,,/MaterialDesignThemes.Wpf;component/Themes/MaterialDesignTheme.Defaults.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+
         <!-- Palette -->
         <Color x:Key="AccentColor">#3d7a5a</Color>
         <SolidColorBrush x:Key="Accent" Color="{StaticResource AccentColor}" />
@@ -246,5 +253,6 @@
         <local:AvailableSourcesForRowConverter x:Key="AvailableSourcesForRow" />
         <local:StringToUpperConverter x:Key="StringToUpper" />
         <local:LinkIndexToBrushConverter x:Key="LinkIndexToBrush" />
+        </ResourceDictionary>
     </Application.Resources>
 </Application>
