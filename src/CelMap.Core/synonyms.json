@@ -51,7 +51,7 @@
     [ "PaymentFrequency", "Payment Frequency", "Pay Frequency", "Pay Cycle", "Payroll Frequency", "Pay Period", "Remuneration Frequency", "Salary Frequency" ],
     [ "PremiumPaymentMethod", "Premium Payment Method", "Premium Payment Mode", "Payment Mode", "Premium Method", "Contribution Method", "Payment Type", "Contribution Payment Method", "Premium Contribution Method" ],
     [ "PremiumPaymentFrequency", "Premium Payment Frequency", "Premium Frequency", "Premium Pay Frequency", "Premium Pay Cycle", "Premium Period", "Contribution Frequency", "Premium Schedule" ],
-    [ "State", "Region", "Residence", "State/Territory", "State or Territory", "State of domicle", "Province", "Location State", "Residential State", "State Code", "State/Province" ],
+    [ "State", "Region", "Residence", "Residency", "State of Residence", "State/Territory", "State or Territory", "State of domicile", "Province", "Location State", "Residential State", "State Code", "State/Province" ],
     {
       "names": [ "TFN", "Tax File N*", "Tax File Number" ],
       "strict": true

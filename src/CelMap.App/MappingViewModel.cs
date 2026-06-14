@@ -78,39 +78,31 @@ public sealed partial class MappingViewModel : ObservableObject
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(VisibleSourceColumns))]
-    private bool _hideEmptySources = true;
+    private bool _showEmptySources;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(VisibleSourceColumns))]
-    private bool _hideMappedSources;
+    private bool _showMappedSources = true;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(VisibleSourceColumns))]
+    private bool _showUnmappedSources = true;
 
     public IEnumerable<SourceColumnViewModel> VisibleSourceColumns =>
         SourceColumns.Where(s =>
-            (!HideEmptySources || !s.IsEmpty) &&
-            (!HideMappedSources || !s.IsLinked));
+            (ShowEmptySources || !s.IsEmpty) &&
+            (s.IsLinked ? ShowMappedSources : ShowUnmappedSources));
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(VisibleRows))]
-    private bool _hideMappedTargets;
+    private bool _showMappedTargets = true;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(VisibleRows))]
-    private bool _hideUnmappedTargets;
-
-    partial void OnHideMappedTargetsChanged(bool value)
-    {
-        if (value && HideUnmappedTargets) HideUnmappedTargets = false;
-    }
-
-    partial void OnHideUnmappedTargetsChanged(bool value)
-    {
-        if (value && HideMappedTargets) HideMappedTargets = false;
-    }
+    private bool _showUnmappedTargets = true;
 
     public IEnumerable<MappingRowViewModel> VisibleRows =>
-        HideMappedTargets ? Rows.Where(r => !r.IsFilled)
-        : HideUnmappedTargets ? Rows.Where(r => r.IsFilled)
-        : Rows;
+        Rows.Where(r => (r.IsFilled && ShowMappedTargets) || (!r.IsFilled && ShowUnmappedTargets));
 
     public IEnumerable<MappingRowViewModel> MappedRows => Rows.Where(r => r.IsFilled && !r.IsHidden);
 

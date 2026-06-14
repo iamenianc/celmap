@@ -35,12 +35,15 @@
                     <CheckBox Content="Fuzzy match · 90%"
                               IsChecked="{Binding DataContext.FuzzyEnabled, RelativeSource={RelativeSource AncestorType=Window}}" VerticalAlignment="Center" Margin="0,0,16,0"
                               ToolTip="Fuzzy matches apply at 90% confidence minimum. Uncheck to only allow exact/synonym matches." />
-                    <CheckBox Content="Hide Empty Sources"
-                              IsChecked="{Binding HideEmptySources}" VerticalAlignment="Center" Margin="0,0,16,0"
-                              ToolTip="Automatically hides source columns that have no data below the header" />
-                    <CheckBox Content="Hide Mapped Sources"
-                              IsChecked="{Binding HideMappedSources}" VerticalAlignment="Center"
-                              ToolTip="Hides source columns that have already been mapped to a target" />
+                    <ToggleButton Content="Empty Sources" Style="{StaticResource FilterToggle}"
+                                  IsChecked="{Binding ShowEmptySources}" VerticalAlignment="Center" Margin="0,0,8,0"
+                                  ToolTip="Show source columns that have no data below the header" />
+                    <ToggleButton Content="Mapped Sources" Style="{StaticResource FilterToggle}"
+                                  IsChecked="{Binding ShowMappedSources}" VerticalAlignment="Center" Margin="0,0,8,0"
+                                  ToolTip="Show source columns that are already mapped to a target" />
+                    <ToggleButton Content="Unmapped Sources" Style="{StaticResource FilterToggle}"
+                                  IsChecked="{Binding ShowUnmappedSources}" VerticalAlignment="Center"
+                                  ToolTip="Show source columns that are not yet mapped to a target" />
                 </StackPanel>
 
                 <WrapPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center"
@@ -252,10 +255,12 @@
                     <WrapPanel Orientation="Horizontal" VerticalAlignment="Center">
                         <TextBlock Text="View:" FontSize="11" FontWeight="SemiBold"
                                    Foreground="{StaticResource MutedText}" VerticalAlignment="Center" Margin="0,0,12,0" />
-                        <CheckBox Content="Hide Unmapped Targets" IsChecked="{Binding HideUnmappedTargets}" VerticalAlignment="Center" FontSize="11" Margin="0,2,16,2"
-                                   ToolTip="Show only target columns that are already mapped (turns off &quot;Hide Mapped Targets&quot;)" />
-                        <CheckBox Content="Hide Mapped Targets" IsChecked="{Binding HideMappedTargets}" VerticalAlignment="Center" FontSize="11" Margin="0,2,0,2"
-                                   ToolTip="Show only target columns that still need a mapping (turns off &quot;Hide Unmapped Targets&quot;)" />
+                        <ToggleButton Content="Mapped Targets" Style="{StaticResource FilterToggle}"
+                                      IsChecked="{Binding ShowMappedTargets}" VerticalAlignment="Center" Margin="0,2,8,2"
+                                      ToolTip="Show target columns that already have a mapping" />
+                        <ToggleButton Content="Unmapped Targets" Style="{StaticResource FilterToggle}"
+                                      IsChecked="{Binding ShowUnmappedTargets}" VerticalAlignment="Center" Margin="0,2,0,2"
+                                      ToolTip="Show target columns that still need a mapping" />
                     </WrapPanel>
                 </Border>
 
@@ -369,6 +374,8 @@
                                                                 </Style>
                                                             </MenuItem.ItemContainerStyle>
                                                         </MenuItem>
+                                                        <MenuItem Header="Unmap" Click="ClearMenuItem_Click"
+                                                                  IsEnabled="{Binding IsFilled}" />
                                                         <Separator />
                                                         <MenuItem Header="Copy"
                                                                   IsEnabled="{Binding HasItems, RelativeSource={RelativeSource Self}}">
@@ -385,8 +392,6 @@
                                                                 </Style>
                                                             </MenuItem.ItemContainerStyle>
                                                         </MenuItem>
-                                                        <MenuItem Header="Clear column" Click="ClearMenuItem_Click"
-                                                                  IsEnabled="{Binding IsFilled}" />
                                                         <MenuItem Header="Hide column" Click="HideMenuItem_Click" />
                                                     </ContextMenu>
                                                 </Border.ContextMenu>

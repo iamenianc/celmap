@@ -107,6 +107,41 @@
             </Setter>
         </Style>
 
+        <!-- Filter toggle — a pill that reads as on/off at a glance. Replaces the easily-missed
+             checkbox for the source/target visibility filters: green fill + check when on,
+             outlined + muted when off. -->
+        <Style x:Key="FilterToggle" TargetType="ToggleButton">
+            <Setter Property="Foreground" Value="{StaticResource MutedText}" />
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ToggleButton">
+                        <Border x:Name="b" Background="White"
+                                BorderBrush="{StaticResource Hairline}" BorderThickness="1"
+                                CornerRadius="11" Padding="10,4">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock x:Name="check" Text="✓ " FontSize="11"
+                                           Foreground="White" Visibility="Collapsed" />
+                                <ContentPresenter VerticalAlignment="Center" />
+                            </StackPanel>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="b" Property="Background" Value="{StaticResource Accent}" />
+                                <Setter TargetName="b" Property="BorderBrush" Value="{StaticResource Accent}" />
+                                <Setter Property="Foreground" Value="White" />
+                                <Setter TargetName="check" Property="Visibility" Value="Visible" />
+                            </Trigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="b" Property="BorderBrush" Value="{StaticResource Accent}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
         <!-- Tertiary text-link button — for rare, demoted actions (e.g. "use a custom file").
              No border or fill; reads as a hyperlink that underlines on hover. -->
         <Style x:Key="LinkButton" TargetType="Button">

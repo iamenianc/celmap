@@ -86,8 +86,23 @@ public sealed partial class SetupViewModel : ObservableObject
 
     public ObservableCollection<string> TargetHeaderPreview { get; } = new();
 
-    public string TargetTemplateDirectory { get; } =
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(TemplateFolderDisplay))]
+    private string _targetTemplateDirectory =
         @"C:\Users\ianch\sourecode\repos\CelMap-Docs\Test_targets";
+
+    /// <summary>Shortened folder path for the inline link — keeps the footer compact.</summary>
+    public string TemplateFolderDisplay
+    {
+        get
+        {
+            string dir = TargetTemplateDirectory;
+            if (string.IsNullOrEmpty(dir)) return "(not set)";
+            string name = Path.GetFileName(dir.TrimEnd(Path.DirectorySeparatorChar,
+                                                        Path.AltDirectorySeparatorChar));
+            return string.IsNullOrEmpty(name) ? dir : $"…\\{name}";
+        }
+    }
 
     public ObservableCollection<TargetChoice> TargetChoices { get; } = new();
 
@@ -158,6 +173,44 @@ public sealed partial class SetupViewModel : ObservableObject
             TargetChoices.Add(existing);
         }
         SelectedTargetChoice = existing;
+    }
+
+    [RelayCommand]
+    private void OpenTemplateFolder()
+    {
+        try
+        {
+            if (!Directory.Exists(TargetTemplateDirectory))
+            {
+                _updateStatus($"Template folder not found: {TargetTemplateDirectory}");
+                return;
+            }
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = TargetTemplateDirectory,
+                UseShellExecute = true
+            });
+        }
+        catch (Exception ex)
+        {
+            _updateStatus($"Couldn't open the template folder: {ex.Message}");
+        }
+    }
+
+    [RelayCommand]
+    private void ChangeTemplateFolder()
+    {
+        var dlg = new OpenFolderDialog
+        {
+            Title = "Choose the template folder",
+            InitialDirectory = Directory.Exists(TargetTemplateDirectory)
+                ? TargetTemplateDirectory : null
+        };
+        if (dlg.ShowDialog() != true) return;
+
+        TargetTemplateDirectory = dlg.FolderName;
+        LoadTargetChoices();
+        SelectedTargetChoice = TargetChoices.FirstOrDefault();
     }
 
     private void LoadTargetChoices()
