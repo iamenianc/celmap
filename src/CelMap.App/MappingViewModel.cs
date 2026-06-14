@@ -230,7 +230,14 @@ public sealed partial class MappingViewModel : ObservableObject
         foreach (var m in result.Mappings)
         {
             var row = new MappingRowViewModel(m);
-            if (row.LinkedSource is { } src)
+            // Parameter-driven target columns (GroupID, Review Start, …) are filled from the
+            // user's typed values and must ALWAYS win over the column auto-matcher — even if a
+            // source column happened to match them. AutoFill clears any auto-mapped link.
+            if (row.IsLocked)
+            {
+                ParameterAutoFiller.AutoFill(row, parameters, _aliases, _sampleRowCount);
+            }
+            else if (row.LinkedSource is { } src)
             {
                 row.SetLink(src, SourceIsEmpty, SamplesFor);
             }
@@ -257,7 +264,13 @@ public sealed partial class MappingViewModel : ObservableObject
         {
             var row = new MappingRowViewModel(m);
             int tgtIdx = m.TargetColumn.ColumnIndex;
-            if (manualOverrides.TryGetValue(tgtIdx, out var overridden))
+            // Parameter columns always take the user's typed value — checked before manual
+            // overrides and auto-matched sources so neither can displace GroupID / Review Start.
+            if (row.IsLocked)
+            {
+                ParameterAutoFiller.AutoFill(row, parameters, aliases, _sampleRowCount);
+            }
+            else if (manualOverrides.TryGetValue(tgtIdx, out var overridden))
             {
                 row.SetLink(overridden, SourceIsEmpty, SamplesFor);
             }

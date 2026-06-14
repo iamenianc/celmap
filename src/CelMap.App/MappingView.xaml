@@ -342,10 +342,13 @@
                                                 <TranslateTransform Y="{Binding VerticalOffset, RelativeSource={RelativeSource AncestorType=ScrollViewer}}" />
                                             </StackPanel.RenderTransform>
                                             
-                                            <!-- mapped-source label strip — transparent so the column zebra
-                                                 band on "col" shows through. -->
-                                            <Border BorderBrush="{StaticResource GridLine}" BorderThickness="0,0,0,1"
-                                                    Background="Transparent" Padding="8,3" Height="36"
+                                            <!-- mapped-source label strip — opaque so scrolled data rows can't
+                                                 show through the frozen header. Carries the column's zebra band
+                                                 colour itself (set in the AlternationIndex trigger below) rather
+                                                 than letting the band on "col" show through. -->
+                                            <Border x:Name="srcStrip"
+                                                    BorderBrush="{StaticResource GridLine}" BorderThickness="0,0,0,1"
+                                                    Background="{StaticResource TargetPanelBg}" Padding="8,3" Height="36"
                                                     Width="{Binding ActualWidth, ElementName=hdr}">
                                                 <Grid Visibility="{Binding IsLinked, Converter={StaticResource BoolToVis}, ConverterParameter=hidden}">
                                                     <Grid.ColumnDefinitions>
@@ -368,9 +371,12 @@
                                                     Tag="{Binding DataContext, RelativeSource={RelativeSource AncestorType=UserControl}}">
                                                 <Border.Style>
                                                     <Style TargetType="Border" BasedOn="{StaticResource GridHeaderCell}">
-                                                        <!-- Transparent base so the column zebra band on "col"
-                                                             shows through; state triggers below repaint it. -->
-                                                        <Setter Property="Background" Value="Transparent" />
+                                                        <!-- Opaque base (matches a non-banded column) so scrolled
+                                                             data rows can't show through the frozen header. The
+                                                             zebra band colour for alternate columns and the
+                                                             linked/manual/constant/fuzzy state colours are painted
+                                                             over this by the triggers below. -->
+                                                        <Setter Property="Background" Value="{StaticResource TargetPanelBg}" />
                                                         <Style.Triggers>
                                                             <DataTrigger Binding="{Binding IsLocked}" Value="True">
                                                                 <Setter Property="Cursor" Value="Arrow" />
@@ -485,12 +491,16 @@
                                 <DataTemplate.Triggers>
                                     <!-- Zebra banding across target columns: alternate columns get a subtle
                                          shade down the WHOLE column (header + preview body) so the eye can tell
-                                         adjacent columns apart. The band sits on the column container; the header
-                                         and body layers above are transparent so it shows through. The header's
-                                         own state triggers (linked/manual/constant/fuzzy-unmapped) still paint
-                                         over the band when a column carries real status. -->
+                                         adjacent columns apart. The band sits on the column container; the body
+                                         layer is transparent so it shows through. The frozen header layers are
+                                         opaque (so scrolled rows don't bleed through) and so must carry the band
+                                         colour themselves. The header's own state triggers (linked/manual/
+                                         constant/fuzzy-unmapped) still paint over the band when a column carries
+                                         real status. -->
                                     <DataTrigger Binding="{Binding Path=(ItemsControl.AlternationIndex), RelativeSource={RelativeSource AncestorType=ContentPresenter}}" Value="1">
                                         <Setter TargetName="col" Property="Background" Value="{StaticResource HeaderZebraBg}" />
+                                        <Setter TargetName="srcStrip" Property="Background" Value="{StaticResource HeaderZebraBg}" />
+                                        <Setter TargetName="hdr" Property="Background" Value="{StaticResource HeaderZebraBg}" />
                                     </DataTrigger>
                                     <DataTrigger Binding="{Binding IsLinked}" Value="True">
                                         <Setter TargetName="hdr" Property="Background" Value="{StaticResource AutoTint}" />

@@ -18,13 +18,15 @@ public sealed partial class ParametersViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(IsParametersValid))]
     private string _insurerIdText = "1";
 
+    // Not pre-filled: the review start date is a required user input. ReviewEnd is
+    // derived from it (see OnReviewStartChanged) once the user picks a start date.
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsParametersValid))]
-    private DateTime? _reviewStart = DateTime.Today;
+    private DateTime? _reviewStart;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsParametersValid))]
-    private DateTime? _reviewEnd = new DateTime(DateTime.Today.Year, 12, 31);
+    private DateTime? _reviewEnd;
 
     [ObservableProperty]
     private bool _defaultCoverGSC;

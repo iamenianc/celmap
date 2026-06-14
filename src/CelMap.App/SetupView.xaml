@@ -167,7 +167,7 @@
                                          Text="{Binding DataContext.Parameters.GroupIdText, RelativeSource={RelativeSource AncestorType=Window}, UpdateSourceTrigger=PropertyChanged}" />
                             </StackPanel>
                             <StackPanel Grid.Column="2">
-                                <DatePicker Style="{StaticResource FieldDate}"
+                                <DatePicker Style="{StaticResource RequiredFieldDate}"
                                             md:HintAssist.Hint="Review Start Date (required)"
                                             SelectedDate="{Binding DataContext.Parameters.ReviewStart, RelativeSource={RelativeSource AncestorType=Window}}"
                                             SelectedDateFormat="Short" />

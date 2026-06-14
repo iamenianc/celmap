@@ -142,14 +142,32 @@
         <Style x:Key="FieldDate" TargetType="DatePicker"
                BasedOn="{StaticResource MaterialDesignOutlinedDatePicker}" />
 
+        <!-- Soft accent tint for the "needs input" state of required fields. -->
+        <SolidColorBrush x:Key="RequiredTint" Color="#eaf4ee" />
+
         <!-- Required text field that needs attention: while empty it gets a thicker accent
-             outline and accent floating label so it reads as a call-to-action ("fill me in").
-             Once the user types a value the highlight reverts to the neutral Field look. -->
+             outline, accent floating label, and a soft accent tint so it reads as a
+             call-to-action ("fill me in"). Once the user types a value the highlight
+             reverts to the neutral Field look. -->
         <Style x:Key="RequiredField" TargetType="TextBox" BasedOn="{StaticResource Field}">
             <Style.Triggers>
                 <Trigger Property="Text" Value="">
                     <Setter Property="BorderBrush" Value="{StaticResource Accent}" />
                     <Setter Property="BorderThickness" Value="2" />
+                    <Setter Property="Background" Value="{StaticResource RequiredTint}" />
+                    <Setter Property="md:HintAssist.Foreground" Value="{StaticResource Accent}" />
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <!-- DatePicker counterpart of RequiredField: highlights the same way while no date
+             is selected, clearing once the user picks one. -->
+        <Style x:Key="RequiredFieldDate" TargetType="DatePicker" BasedOn="{StaticResource FieldDate}">
+            <Style.Triggers>
+                <Trigger Property="SelectedDate" Value="{x:Null}">
+                    <Setter Property="BorderBrush" Value="{StaticResource Accent}" />
+                    <Setter Property="BorderThickness" Value="2" />
+                    <Setter Property="Background" Value="{StaticResource RequiredTint}" />
                     <Setter Property="md:HintAssist.Foreground" Value="{StaticResource Accent}" />
                 </Trigger>
             </Style.Triggers>
