@@ -415,4 +415,24 @@ public class ColumnMatcherTests
         Assert.Equal(MatchStatus.NeedsReview, resBoth.Mappings[1].Status); // GLCategoryNo needs review
         Assert.Equal(MatchStatus.NeedsReview, resBoth.Mappings[2].Status); // TPDCategoryNo needs review
     }
+
+    [Fact]
+    public void SynonymFuzzyMatch_FamilyName_Matches_LastName()
+    {
+        var aliases = new AliasRules(new[]
+        {
+            new AliasGroup(new[] { "LastName", "Last Name", "Surname", "Family Name" }, Strict: false)
+        });
+        var matcher = new ColumnMatcher(aliases);
+        
+        var result = matcher.Match(
+            Headers("family name"),
+            Headers("LastName"),
+            new MatcherOptions(ConfidenceThreshold: 90));
+
+        var m = result.Mappings[0];
+        Assert.Equal(MatchStatus.Auto, m.Status);
+        Assert.Equal(100, m.Score);
+        Assert.Equal(0, m.MatchedSource!.ColumnIndex);
+    }
 }

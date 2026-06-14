@@ -9,7 +9,7 @@
     <Grid Margin="16">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" MinHeight="430" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
@@ -72,9 +72,9 @@
 
             <!-- SOURCE -->
             <Border Grid.Column="2" Style="{StaticResource Card}">
-                <StackPanel>
-                    <TextBlock Text="SOURCE  ·  copy data FROM" Style="{StaticResource SectionHeader}" />
-                    <Border x:Name="SourceDropZone" Style="{StaticResource DropZone}"
+                <DockPanel>
+                    <TextBlock DockPanel.Dock="Top" Text="SOURCE  ·  copy data FROM" Style="{StaticResource SectionHeader}" />
+                    <Border x:Name="SourceDropZone" DockPanel.Dock="Top" Style="{StaticResource DropZone}"
                             AllowDrop="True" Drop="SourceDropZone_Drop"
                             DragEnter="DropZone_DragEnter" DragLeave="DropZone_DragLeave"
                             MouseLeftButtonUp="SourceDropZone_Click" Cursor="Hand">
@@ -87,7 +87,7 @@
                         </StackPanel>
                     </Border>
 
-                    <Grid Margin="0,8,0,0">
+                    <Grid DockPanel.Dock="Top" Margin="0,8,0,0">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="12" />
@@ -112,9 +112,9 @@
                         </StackPanel>
                     </Grid>
 
-                    <TextBlock Text="Columns in sheet:" FontSize="11"
+                    <TextBlock DockPanel.Dock="Top" Text="Columns in sheet:" FontSize="11"
                                Foreground="{StaticResource MutedText}" Margin="0,8,0,3" />
-                    <ScrollViewer MaxHeight="250" VerticalScrollBarVisibility="Auto" Margin="0,0,0,6">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto" Margin="0,0,0,6">
                         <ItemsControl ItemsSource="{Binding SourceHeaderPreview}">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
@@ -127,7 +127,7 @@
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
                     </ScrollViewer>
-                </StackPanel>
+                </DockPanel>
             </Border>
 
             <!-- TARGET -->

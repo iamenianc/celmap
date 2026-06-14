@@ -83,7 +83,7 @@
                                   ToolTip="Switch the source to a different worksheet — re-runs the match against the same target" />
                     </StackPanel>
                     <TextBlock Style="{StaticResource SectionHeader}" VerticalAlignment="Center">
-                        <Run Text="SOURCE  —  " /><Run Text="{Binding DataContext.Setup.SourceFilePath, Mode=OneWay, RelativeSource={RelativeSource AncestorType=Window}}" Foreground="{StaticResource InkText}" />
+                        <Run Text="SOURCE  —  " /><Run Text="{Binding DataContext.Setup.SourceFilePath, Converter={StaticResource StringToUpper}, Mode=OneWay, RelativeSource={RelativeSource AncestorType=Window}}" Foreground="{StaticResource InkText}" />
                     </TextBlock>
                 </DockPanel>
                 
@@ -128,7 +128,7 @@
                                             
                                             <!-- mapped-target label strip -->
                                             <Border BorderBrush="{StaticResource GridLine}" BorderThickness="0,0,0,1"
-                                                    Background="#ffffff" Padding="8,3" Height="24"
+                                                    Background="#ffffff" Padding="8,3" Height="36"
                                                     Width="{Binding ActualWidth, ElementName=srcHdr}">
                                                 <Grid Visibility="{Binding IsLinked, Converter={StaticResource BoolToVis}, ConverterParameter=hidden}">
                                                     <Grid.ColumnDefinitions>
@@ -138,7 +138,7 @@
                                                     <TextBlock Grid.Column="0" Text="→ " FontSize="11" Foreground="{StaticResource MutedText}" />
                                                     <TextBlock Grid.Column="1" Text="{Binding MappedTargetLabel}" FontSize="11"
                                                                FontWeight="SemiBold" Foreground="{StaticResource Accent}"
-                                                               TextTrimming="CharacterEllipsis" ToolTip="{Binding MappedTargetLabel}" />
+                                                               TextWrapping="Wrap" TextTrimming="CharacterEllipsis" ToolTip="{Binding MappedTargetLabel}" />
                                                 </Grid>
                                             </Border>
                                             
@@ -151,6 +151,9 @@
                                                         <Style.Triggers>
                                                             <DataTrigger Binding="{Binding IsLinked}" Value="True">
                                                                 <Setter Property="ToolTip" Value="Click to pick · double-click to clear mappings · right-click to unmap" />
+                                                            </DataTrigger>
+                                                            <DataTrigger Binding="{Binding HasPossibleMatch}" Value="True">
+                                                                <Setter Property="Background" Value="{StaticResource WarnBg}" />
                                                             </DataTrigger>
                                                             <!-- Pre-click aim feedback: tint the header the cursor is over. -->
                                                             <Trigger Property="IsMouseOver" Value="True">
@@ -184,17 +187,31 @@
 
                                         <!-- Data cells must not widen the column past the header: cap each
                                              cell to the header's width and trim with an ellipsis. -->
-                                        <ItemsControl ItemsSource="{Binding SampleCells}" AlternationCount="2" Panel.ZIndex="0"
-                                                      Width="{Binding ActualWidth, ElementName=srcHdr}">
-                                            <ItemsControl.ItemTemplate>
-                                                <DataTemplate>
-                                                    <Border Style="{StaticResource ZebraRowCell}">
-                                                        <TextBlock Text="{Binding}" Style="{StaticResource GridDataCell}"
-                                                                   TextTrimming="CharacterEllipsis" ToolTip="{Binding}" />
-                                                    </Border>
-                                                </DataTemplate>
-                                            </ItemsControl.ItemTemplate>
-                                        </ItemsControl>
+                                         <Border x:Name="srcRowsBorder" Background="Transparent">
+                                             <ItemsControl ItemsSource="{Binding SampleCells}" AlternationCount="2" Panel.ZIndex="0"
+                                                           Width="{Binding ActualWidth, ElementName=srcHdr}">
+                                                 <ItemsControl.ItemTemplate>
+                                                     <DataTemplate>
+                                                         <Border>
+                                                             <Border.Style>
+                                                                 <Style TargetType="Border">
+                                                                     <Setter Property="Background" Value="Transparent" />
+                                                                     <Setter Property="BorderBrush" Value="#e8ede9" />
+                                                                     <Setter Property="BorderThickness" Value="0,0,0,1" />
+                                                                     <Style.Triggers>
+                                                                         <DataTrigger Binding="{Binding Path=(ItemsControl.AlternationIndex), RelativeSource={RelativeSource AncestorType=ContentPresenter}}" Value="1">
+                                                                             <Setter Property="Background" Value="#06000000" />
+                                                                         </DataTrigger>
+                                                                     </Style.Triggers>
+                                                                 </Style>
+                                                             </Border.Style>
+                                                             <TextBlock Text="{Binding}" Style="{StaticResource GridDataCell}"
+                                                                        TextTrimming="CharacterEllipsis" ToolTip="{Binding}" />
+                                                         </Border>
+                                                     </DataTemplate>
+                                                 </ItemsControl.ItemTemplate>
+                                             </ItemsControl>
+                                         </Border>
                                    </StackPanel>
                                 </Border>
                                 <DataTemplate.Triggers>
@@ -212,7 +229,8 @@
                                         <Setter TargetName="srcHdr" Property="Background" Value="{StaticResource ManualTint}" />
                                         <Setter TargetName="srcHdr" Property="BorderBrush" Value="{StaticResource Accent}" />
                                         <Setter TargetName="srcHdr" Property="BorderThickness" Value="2" />
-                                    </DataTrigger>
+                                         <Setter TargetName="srcRowsBorder" Property="Background" Value="#f5faf7" />
+                                     </DataTrigger>
                                 </DataTemplate.Triggers>
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
@@ -242,7 +260,7 @@
                 </Border>
 
                 <TextBlock DockPanel.Dock="Top" Style="{StaticResource SectionHeader}" Margin="14,8,14,4">
-                    <Run Text="TARGET  " /><Run Text="{Binding DataContext.Setup.TargetFileName, Mode=OneWay, RelativeSource={RelativeSource AncestorType=Window}}" Foreground="{StaticResource InkText}" />
+                    <Run Text="TARGET  " /><Run Text="{Binding DataContext.Setup.TargetFileName, Converter={StaticResource StringToUpper}, Mode=OneWay, RelativeSource={RelativeSource AncestorType=Window}}" Foreground="{StaticResource InkText}" />
                 </TextBlock>
                 <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
                     <ItemsControl ItemsSource="{Binding VisibleRows}">
@@ -287,7 +305,7 @@
                                             
                                             <!-- mapped-source label strip -->
                                             <Border BorderBrush="{StaticResource GridLine}" BorderThickness="0,0,0,1"
-                                                    Background="#ffffff" Padding="8,3" Height="24"
+                                                    Background="#ffffff" Padding="8,3" Height="36"
                                                     Width="{Binding ActualWidth, ElementName=hdr}">
                                                 <Grid Visibility="{Binding IsLinked, Converter={StaticResource BoolToVis}, ConverterParameter=hidden}">
                                                     <Grid.ColumnDefinitions>
@@ -297,7 +315,7 @@
                                                     <TextBlock Grid.Column="0" Text="← " FontSize="11" Foreground="{StaticResource MutedText}" />
                                                     <TextBlock Grid.Column="1" Text="{Binding LinkedSourceLabel}" FontSize="11"
                                                                FontWeight="SemiBold" Foreground="{StaticResource Accent}"
-                                                               TextTrimming="CharacterEllipsis" ToolTip="{Binding LinkedSourceLabel}" />
+                                                               TextWrapping="Wrap" TextTrimming="CharacterEllipsis" ToolTip="{Binding LinkedSourceLabel}" />
                                                 </Grid>
                                             </Border>
 
@@ -541,8 +559,8 @@
                     </TextBlock.Style>
                     <Run Text="{Binding DataContext.Status, Mode=OneWay, RelativeSource={RelativeSource AncestorType=Window}}" />
                     <Hyperlink Command="{Binding DataContext.OpenOutputFileCommand, RelativeSource={RelativeSource AncestorType=Window}}"
-                               ToolTip="{Binding DataContext.OutputFilePath, RelativeSource={RelativeSource AncestorType=Window}}"
-                               FontSize="14" FontWeight="SemiBold">
+                               ToolTip="{Binding DataContext.OutputFilePath, Converter={StaticResource StringToUpper}, RelativeSource={RelativeSource AncestorType=Window}}"
+                               FontWeight="SemiBold">
                         <Hyperlink.Style>
                             <Style TargetType="Hyperlink">
                                 <Setter Property="Foreground">
@@ -570,7 +588,7 @@
                                 </Style.Triggers>
                             </Style>
                         </Hyperlink.Style>
-                        <Run Text="{Binding DataContext.OutputFilePath, Mode=OneWay, RelativeSource={RelativeSource AncestorType=Window}}" />
+                        <Run Text="{Binding DataContext.OutputFilePath, Converter={StaticResource StringToUpper}, Mode=OneWay, RelativeSource={RelativeSource AncestorType=Window}}" />
                     </Hyperlink>
                 </TextBlock>
             </DockPanel>

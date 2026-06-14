@@ -201,5 +201,6 @@
         <local:StringMatchToVisibilityConverter x:Key="StateToVis" />
         <local:ExcludeCurrentItemConverter x:Key="ExcludeCurrentItem" />
         <local:AvailableSourcesForRowConverter x:Key="AvailableSourcesForRow" />
+        <local:StringToUpperConverter x:Key="StringToUpper" />
     </Application.Resources>
 </Application>

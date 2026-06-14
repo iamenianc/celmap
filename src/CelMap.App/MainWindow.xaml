@@ -6,7 +6,7 @@
         xmlns:local="clr-namespace:CelMap.App"
         mc:Ignorable="d"
         Title="CelMap — Excel Column Mapper"
-        Height="960" Width="1000" MinHeight="720" MinWidth="900"
+        Height="620" Width="1000" MinHeight="560" MinWidth="900"
         WindowStartupLocation="CenterScreen"
         Background="{StaticResource WindowBg}"
         d:DataContext="{d:DesignInstance local:MainViewModel}">

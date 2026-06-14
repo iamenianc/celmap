@@ -336,11 +336,20 @@ public sealed partial class MainViewModel : ObservableObject
 
     private static IReadOnlyList<string> SampleFor(SheetData data, int colIndex, int headerRow0)
     {
-        var cells = new List<string>(SampleRowCount);
-        for (int r = headerRow0 + 1; r <= headerRow0 + SampleRowCount; r++)
-            cells.Add(r < data.RowCount ? data.GetCell(r, colIndex).ToString() : string.Empty);
+        // Only emit cells for rows that actually exist in the sheet below the header,
+        // capped at SampleRowCount. Padding out to a fixed count made the grid render
+        // empty rows you could scroll into past the real data.
+        int rows = ActualDataRowCount(data, headerRow0);
+        var cells = new List<string>(rows);
+        for (int r = headerRow0 + 1; r <= headerRow0 + rows; r++)
+            cells.Add(data.GetCell(r, colIndex).ToString());
         return cells;
     }
+
+    /// <summary>Number of data rows below the header that actually exist in the sheet,
+    /// capped at the preview limit. Drives how many rows the mapper grids render.</summary>
+    private static int ActualDataRowCount(SheetData data, int headerRow0) =>
+        Math.Clamp(data.RowCount - (headerRow0 + 1), 0, SampleRowCount);
 
     partial void OnFuzzyEnabledChanged(bool value)
     {

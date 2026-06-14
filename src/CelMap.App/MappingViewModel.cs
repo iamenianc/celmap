@@ -10,7 +10,12 @@ namespace CelMap.App;
 
 public sealed partial class MappingViewModel : ObservableObject
 {
-    private const int SampleRowCount = 100;
+    private const int MaxSampleRows = 100;
+
+    /// <summary>Actual number of data rows being previewed — the real rows present in the
+    /// source sheet below the header (capped at <see cref="MaxSampleRows"/>). Constant/locked
+    /// columns repeat down exactly this many rows so they line up with mapped columns.</summary>
+    private int _sampleRowCount = MaxSampleRows;
 
     private SheetData? _sourceData;
     private int _matchedSrcHeaderRow;
@@ -178,7 +183,7 @@ public sealed partial class MappingViewModel : ObservableObject
             int tgt = row.TargetColumn.ColumnIndex;
             if (snap.Constants.TryGetValue(tgt, out var constant))
             {
-                row.SetConstant(constant, SampleRowCount);
+                row.SetConstant(constant, _sampleRowCount);
             }
             else
             {
@@ -209,6 +214,12 @@ public sealed partial class MappingViewModel : ObservableObject
         _matchedSrcHeaderRow = matchedSrcHeaderRow;
         _sourceSamples = sourceSamples;
         _aliases = aliases;
+
+        // The preview shows only the rows that actually exist below the header (capped at
+        // MaxSampleRows). Derive that count from the samples so constant/locked columns
+        // repeat down the same number of rows and line up with the mapped columns.
+        _sampleRowCount = sourceSamples.Count == 0 ? 0
+            : Math.Min(MaxSampleRows, sourceSamples.Values.Max(s => s.Count));
 
         SourceColumns.Clear();
         foreach (var h in _sourceHeaders)
@@ -384,7 +395,7 @@ public sealed partial class MappingViewModel : ObservableObject
         PushHistory();
         if (sourceRow.IsConstant)
         {
-            targetRow.SetConstant(sourceRow.ConstantValue!, SampleRowCount);
+            targetRow.SetConstant(sourceRow.ConstantValue!, _sampleRowCount);
         }
         else if (sourceRow.IsLinked)
         {
@@ -416,10 +427,25 @@ public sealed partial class MappingViewModel : ObservableObject
         var linked = Rows.Where(r => r.IsLinked && !r.IsHidden)
                          .GroupBy(r => r.LinkedSource!.ColumnIndex)
                          .ToDictionary(g => g.Key, g => string.Join(", ", g.Select(r => r.TargetLabel)));
+
+        var possibleMatchSourceIndexes = new HashSet<int>();
+        foreach (var row in Rows)
+        {
+            if (row.IsHidden) continue;
+            foreach (var candidate in row.Candidates)
+            {
+                if (candidate.Score >= 75)
+                {
+                    possibleMatchSourceIndexes.Add(candidate.SourceColumn.ColumnIndex);
+                }
+            }
+        }
+
         foreach (var s in SourceColumns)
         {
             s.IsLinked = linked.ContainsKey(s.Column.ColumnIndex);
             s.MappedTargetLabel = s.IsLinked ? linked[s.Column.ColumnIndex] : null;
+            s.HasPossibleMatch = !s.IsLinked && possibleMatchSourceIndexes.Contains(s.Column.ColumnIndex);
         }
     }
 }
