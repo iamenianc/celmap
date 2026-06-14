@@ -188,12 +188,36 @@
     {
       "names": [
         "GSCCategoryNo",
-        "Category No",
-        "CategoryNo",
-        "Cat No",
-        "Category Number",
-        "Cat Number",
-        "Category Num"
+        "GSC Category No",
+        "GSC CategoryNo",
+        "GSC Cat No",
+        "GSC Category Number",
+        "GSC Cat Number",
+        "GSC Category Num"
+      ],
+      "strict": true
+    },
+    {
+      "names": [
+        "GLCategoryNo",
+        "GL Category No",
+        "GL CategoryNo",
+        "GL Cat No",
+        "GL Category Number",
+        "GL Cat Number",
+        "GL Category Num"
+      ],
+      "strict": true
+    },
+    {
+      "names": [
+        "TPDCategoryNo",
+        "TPD Category No",
+        "TPD CategoryNo",
+        "TPD Cat No",
+        "TPD Category Number",
+        "TPD Cat Number",
+        "TPD Category Num"
       ],
       "strict": true
     },
