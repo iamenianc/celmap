@@ -131,8 +131,12 @@ public sealed class AliasRules
 
     public void SaveToFile(string path) => File.WriteAllText(path, ToJson());
 
-    private static string Normalize(string s) =>
-        s.Replace('\n', ' ').Replace('\r', ' ').Trim().ToLowerInvariant();
+    // Whitespace-INSENSITIVE, matching the exact matcher's NormalizeTight: all whitespace
+    // (including internal spaces and folded newlines) is removed so spacing variants of the
+    // same label collapse to one key — e.g. "Tax File Number", "TaxFileNumber" and
+    // "tax file  number" are all the same alias. Keeping this in lock-step with the exact
+    // check is what lets a concatenated source header alias-match a spaced synonym.
+    private static string Normalize(string s) => HeaderNormalizer.NormalizeTight(s);
 
     private static readonly JsonSerializerOptions JsonOptions = new()
     {

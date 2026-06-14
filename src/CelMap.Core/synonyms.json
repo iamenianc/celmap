@@ -408,14 +408,10 @@
       "State Code",
       "State/Province"
     ],
-    {
-      "names": [
-        "TFN",
-        "Tax File N*",
-        "Tax File Number"
-      ],
-      "strict": true
-    },
+    [
+      "TFN",
+      "Tax File Number"
+    ],
     [
       "FirstName",
       "First Name",

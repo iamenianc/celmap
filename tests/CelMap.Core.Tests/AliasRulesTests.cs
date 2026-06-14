@@ -27,6 +27,16 @@ public class AliasRulesTests
     }
 
     [Fact]
+    public void AreAliases_CollapsesInternalWhitespace()
+    {
+        // A concatenated source header must alias-match a spaced synonym (and vice versa):
+        // "DateofBirth" / "Date  of  Birth" all normalize to the same key as "Date of Birth".
+        var r = Rules();
+        Assert.True(r.AreAliases("DateofBirth", "Date of Birth"));
+        Assert.True(r.AreAliases("Date  of   Birth", "DOB"));
+    }
+
+    [Fact]
     public void AreAliases_DifferentGroups_AreNotAliases()
     {
         var r = Rules();
