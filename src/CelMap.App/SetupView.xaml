@@ -92,21 +92,9 @@
                     <TextBlock DockPanel.Dock="Top" Text="Columns in sheet:" FontSize="11"
                                Foreground="{StaticResource MutedText}" Margin="0,8,0,3" />
                     <ScrollViewer VerticalScrollBarVisibility="Auto">
-                        <ItemsControl ItemsSource="{Binding SourceHeaderPreview}">
-                            <ItemsControl.ItemsPanel>
-                                <ItemsPanelTemplate>
-                                    <WrapPanel />
-                                </ItemsPanelTemplate>
-                            </ItemsControl.ItemsPanel>
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate>
-                                    <Border Background="#f8faf9" CornerRadius="4" Padding="8,3" Margin="0,0,6,6"
-                                            BorderBrush="{StaticResource Hairline}" BorderThickness="1">
-                                        <TextBlock Text="{Binding}" FontSize="12" Foreground="{StaticResource InkText}" />
-                                    </Border>
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
+                        <TextBlock Text="{Binding SourceColumnsText}"
+                                   FontSize="12" Foreground="{StaticResource InkText}"
+                                   TextWrapping="Wrap" LineHeight="18" />
                     </ScrollViewer>
                 </DockPanel>
             </Border>
@@ -167,6 +155,31 @@
                         </StackPanel>
                     </Grid>
 
+                    <!-- Review details fill the space beneath the target picker.
+                         Group ID and Review Start Date are the final inputs before mapping. -->
+                    <StackPanel DockPanel.Dock="Top" Margin="0,18,0,0">
+                        <TextBlock Text="REVIEW DETAILS" Style="{StaticResource SectionHeader}" />
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="16" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0">
+                                <Label Content="Group ID (Required)" Target="{Binding ElementName=GroupIdInput}" />
+                                <TextBox x:Name="GroupIdInput"
+                                         Text="{Binding DataContext.Parameters.GroupIdText, RelativeSource={RelativeSource AncestorType=Window}, UpdateSourceTrigger=PropertyChanged}" />
+                                <TextBlock Text="Must be an integer" FontSize="11"
+                                           Foreground="{StaticResource MutedText}" Margin="0,2,0,0" />
+                            </StackPanel>
+                            <StackPanel Grid.Column="2">
+                                <Label Content="Review Start Date (Required)" />
+                                <DatePicker SelectedDate="{Binding DataContext.Parameters.ReviewStart, RelativeSource={RelativeSource AncestorType=Window}}"
+                                            SelectedDateFormat="Short" />
+                            </StackPanel>
+                        </Grid>
+                    </StackPanel>
+
                     <!-- Template-folder controls: pinned to the bottom of the panel.
                          The folder name is a link that opens Explorer; "Change…" repoints it. -->
                     <Grid DockPanel.Dock="Bottom" Margin="0,8,0,0">
@@ -200,44 +213,30 @@
             </Border>
         </Grid>
 
-        <!-- Final inputs (Group ID, Review Start Date) + Map button -->
+        <!-- Footer: Map button (left, with its enablement hint right beside it) and the
+             output folder (right). Everything shares one bottom baseline. -->
         <Border Grid.Row="2" Style="{StaticResource Card}" Margin="0,12,0,0">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="16" />
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="16" />
+                    <ColumnDefinition Width="12" />
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
 
-                <StackPanel Grid.Column="0">
-                    <Label Content="Group ID (Required)" Target="{Binding ElementName=GroupIdInput}" />
-                    <TextBox x:Name="GroupIdInput" Width="140" HorizontalAlignment="Left"
-                             Text="{Binding DataContext.Parameters.GroupIdText, RelativeSource={RelativeSource AncestorType=Window}, UpdateSourceTrigger=PropertyChanged}" />
-                    <TextBlock Text="Must be an integer" FontSize="11" Foreground="{StaticResource MutedText}" Margin="0,2,0,0" />
-                </StackPanel>
-
-                <StackPanel Grid.Column="2">
-                    <Label Content="Review Start Date (Required)" />
-                    <DatePicker Width="140" HorizontalAlignment="Left"
-                                SelectedDate="{Binding DataContext.Parameters.ReviewStart, RelativeSource={RelativeSource AncestorType=Window}}"
-                                SelectedDateFormat="Short" />
-                    <TextBlock Text="⚠ Enter a valid Group ID and date."
-                               Foreground="#b8382a" FontSize="11" Margin="0,2,0,0"
-                               Visibility="{Binding DataContext.IsParametersValid, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BoolToVis}, ConverterParameter=invert}" />
-                </StackPanel>
-
-                <Button Grid.Column="4" Content="Map →" Style="{StaticResource PrimaryButton}"
-                        MinWidth="150" VerticalAlignment="Center" Height="50" HorizontalAlignment="Left"
-                        Margin="0,0,16,0"
+                <Button Grid.Column="0" Content="Map →" Style="{StaticResource PrimaryButton}"
+                        MinWidth="150" Height="40" VerticalAlignment="Center" HorizontalAlignment="Left"
                         Command="{Binding DataContext.MatchCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                         ToolTip="Auto-map the confident columns and open the mapping screen" />
 
-                <StackPanel Grid.Column="5" VerticalAlignment="Top">
+                <TextBlock Grid.Column="1" Grid.ColumnSpan="2" VerticalAlignment="Center"
+                           Foreground="{StaticResource WarnText}" FontSize="12" TextWrapping="Wrap"
+                           Text="Enter a Group ID and Review Start Date to enable mapping."
+                           Visibility="{Binding DataContext.IsParametersValid, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BoolToVis}, ConverterParameter=invert}" />
+
+                <StackPanel Grid.Column="3" VerticalAlignment="Center">
                     <Label Content="Output folder" />
-                    <TextBox Width="220" HorizontalAlignment="Left"
+                    <TextBox Width="240" HorizontalAlignment="Left"
                              Text="{Binding DataContext.OutputDirectory, RelativeSource={RelativeSource AncestorType=Window}}" />
                 </StackPanel>
             </Grid>

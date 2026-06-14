@@ -51,6 +51,23 @@ public sealed partial class SetupViewModel : ObservableObject
 
     public ObservableCollection<string> SourceHeaderPreview { get; } = new();
 
+    /// <summary>The source columns as a single readable sentence with an Oxford comma
+    /// (e.g. "A, B, and C") — shown instead of a wall of chips.</summary>
+    public string SourceColumnsText
+    {
+        get
+        {
+            var list = SourceHeaderPreview.Where(s => !string.IsNullOrWhiteSpace(s)).ToList();
+            return list.Count switch
+            {
+                0 => string.Empty,
+                1 => list[0],
+                2 => $"{list[0]} and {list[1]}",
+                _ => $"{string.Join(", ", list.Take(list.Count - 1))}, and {list[^1]}"
+            };
+        }
+    }
+
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(TargetFileName))]
     [NotifyPropertyChangedFor(nameof(TargetRowCountDisplay))]
@@ -143,6 +160,8 @@ public sealed partial class SetupViewModel : ObservableObject
         _reader = reader;
         _updateStatus = updateStatus;
         _resetGrid = resetGrid;
+
+        SourceHeaderPreview.CollectionChanged += (_, _) => OnPropertyChanged(nameof(SourceColumnsText));
 
         LoadTargetChoices();
         SelectedTargetChoice = TargetChoices.FirstOrDefault();

@@ -42,6 +42,7 @@ public sealed partial class MappingRowViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(StatusText))]
     [NotifyPropertyChangedFor(nameof(IsManualOverride))]
     [NotifyPropertyChangedFor(nameof(IsFuzzyAuto))]
+    [NotifyPropertyChangedFor(nameof(IsFuzzyUnmapped))]
     private HeaderColumn? _linkedSource;
 
     /// <summary>A typed literal that fills EVERY data row of this target column, instead of a
@@ -52,6 +53,7 @@ public sealed partial class MappingRowViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(IsFilled))]
     [NotifyPropertyChangedFor(nameof(BodyState))]
     [NotifyPropertyChangedFor(nameof(StatusText))]
+    [NotifyPropertyChangedFor(nameof(IsFuzzyUnmapped))]
     private string? _constantValue;
 
     /// <summary>The sample rows shown in the body — mirrors the linked source's values,
@@ -171,6 +173,17 @@ public sealed partial class MappingRowViewModel : ObservableObject
     public bool IsFuzzyAuto =>
         IsLinked && !IsManualOverride
         && Original.Status == MatchStatus.Auto && Kind == MatchKind.Fuzzy;
+
+    /// <summary>The engine auto-applied a fuzzy match here (≥90% — the only score it auto-applies),
+    /// regardless of what the user has done since. Kept so an unmapped fuzzy still reads as
+    /// "this was a 90%+ guess you removed" rather than a plain blank.</summary>
+    public bool WasFuzzyAuto =>
+        Original.Status == MatchStatus.Auto && Kind == MatchKind.Fuzzy;
+
+    /// <summary>A 90%+ fuzzy auto-pick that the user has since cleared, leaving the slot empty.
+    /// Still flagged in the grid so it isn't silently lost.</summary>
+    public bool IsFuzzyUnmapped =>
+        WasFuzzyAuto && !IsFilled;
 
     /// <summary>Strict targets are deliberately left unmatched (fuzzy suppressed) — flag, don't hide.</summary>
     public bool IsStrict => Original is { Status: MatchStatus.Unmatched, Score: 0, Candidates.Count: 0 };

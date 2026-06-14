@@ -446,6 +446,13 @@
                                     <DataTrigger Binding="{Binding IsFuzzyAuto}" Value="True">
                                         <Setter TargetName="hdr" Property="Background" Value="{StaticResource WarnBg}" />
                                     </DataTrigger>
+                                    <!-- A 90%+ fuzzy auto-pick the user has unmapped: keep it flagged
+                                         (amber fill + border) so the removed guess isn't lost. -->
+                                    <DataTrigger Binding="{Binding IsFuzzyUnmapped}" Value="True">
+                                        <Setter TargetName="hdr" Property="Background" Value="{StaticResource WarnBg}" />
+                                        <Setter TargetName="hdr" Property="BorderBrush" Value="{StaticResource WarnText}" />
+                                        <Setter TargetName="hdr" Property="BorderThickness" Value="1" />
+                                    </DataTrigger>
                                     <DataTrigger Binding="{Binding IsManualOverride}" Value="True">
                                         <Setter TargetName="hdr" Property="Background" Value="{StaticResource ManualTint}" />
                                     </DataTrigger>
