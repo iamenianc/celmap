@@ -4,7 +4,8 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
              xmlns:local="clr-namespace:CelMap.App"
-             mc:Ignorable="d" 
+             xmlns:md="http://materialdesigninxaml.net/winfx/xaml/themes"
+             mc:Ignorable="d"
              d:DataContext="{d:DesignInstance local:MappingViewModel}">
     <Grid>
         <Grid.RowDefinitions>
@@ -32,6 +33,20 @@
                             Command="{Binding UndoCommand}" ToolTip="Ctrl+Z" />
                     <Button Content="↷ Redo" Style="{StaticResource GhostButton}" Margin="0,0,16,0"
                             Command="{Binding RedoCommand}" ToolTip="Ctrl+Y" />
+
+                    <!-- Active review context (Group + Review Start) lives next to the nav/title
+                         where it reads as "what review am I in", instead of floating alone in the
+                         top-right corner. -->
+                    <Border Background="#f8faf9" CornerRadius="6" BorderBrush="{StaticResource Hairline}"
+                            BorderThickness="1" Padding="8,4" Margin="0,0,16,0" VerticalAlignment="Center">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="Group: " Foreground="{StaticResource MutedText}" FontSize="11" />
+                            <TextBlock Text="{Binding DataContext.Parameters.GroupIdText, RelativeSource={RelativeSource AncestorType=Window}}" Foreground="{StaticResource InkText}" FontWeight="SemiBold" FontSize="11" Margin="0,0,10,0" />
+                            <TextBlock Text="Review Start: " Foreground="{StaticResource MutedText}" FontSize="11" />
+                            <TextBlock Text="{Binding DataContext.Parameters.ReviewStart, StringFormat=yyyy-MM-dd, RelativeSource={RelativeSource AncestorType=Window}}" Foreground="{StaticResource InkText}" FontWeight="SemiBold" FontSize="11" />
+                        </StackPanel>
+                    </Border>
+
                     <TextBlock Text="Fuzzy:" FontSize="11" FontWeight="SemiBold" Foreground="{StaticResource MutedText}"
                                VerticalAlignment="Center" Margin="0,0,8,0" />
                     <CheckBox Content="Strong · ≥90%"
@@ -53,25 +68,12 @@
                                   ToolTip="Show source columns that are not yet mapped to a target" />
                 </StackPanel>
 
-                <WrapPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center"
-                           HorizontalAlignment="Right" Margin="8,0,14,0">
-                    <!-- Active Parameters Summary Badge -->
-                    <Border Background="#f8faf9" CornerRadius="6" BorderBrush="{StaticResource Hairline}" BorderThickness="1" Padding="8,4" Margin="0,2,8,2">
-                        <StackPanel Orientation="Horizontal">
-                            <TextBlock Text="Group: " Foreground="{StaticResource MutedText}" FontSize="11" />
-                            <TextBlock Text="{Binding DataContext.Parameters.GroupIdText, RelativeSource={RelativeSource AncestorType=Window}}" Foreground="{StaticResource InkText}" FontWeight="SemiBold" FontSize="11" Margin="0,0,10,0" />
-                            <TextBlock Text="Review Start: " Foreground="{StaticResource MutedText}" FontSize="11" />
-                            <TextBlock Text="{Binding DataContext.Parameters.ReviewStart, StringFormat=yyyy-MM-dd, RelativeSource={RelativeSource AncestorType=Window}}" Foreground="{StaticResource InkText}" FontWeight="SemiBold" FontSize="11" />
-                        </StackPanel>
-                    </Border>
-
-                </WrapPanel>
-
                 <!-- Scale density dropdown -->
                 <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" Margin="12,0,0,0">
                     <TextBlock Text="Aa" FontSize="11" Foreground="{StaticResource MutedText}"
                                VerticalAlignment="Center" Margin="0,0,5,0" />
                     <ComboBox Width="110" FontSize="11"
+                              Style="{StaticResource MaterialDesignComboBox}"
                               ItemsSource="{Binding DataContext.DensityOptions, RelativeSource={RelativeSource AncestorType=Window}}"
                               SelectedItem="{Binding DataContext.UiDensity, RelativeSource={RelativeSource AncestorType=Window}}"
                               ToolTip="Display size — Large for easier reading, Compact for more on screen" />
@@ -273,7 +275,8 @@
             </DockPanel>
         </Border>
 
-        <GridSplitter Grid.Row="2" Height="6" HorizontalAlignment="Stretch"
+        <GridSplitter Grid.Row="2" Style="{StaticResource MaterialDesignGridSplitter}"
+                      Height="6" HorizontalAlignment="Stretch"
                       Background="{StaticResource WindowBg}" />
 
 
@@ -522,38 +525,9 @@
         </Border>
 
         <!-- status footer -->
-        <Border Grid.Row="4" BorderBrush="{StaticResource Hairline}"
+        <Border Grid.Row="4" Background="{StaticResource PanelBg}"
+                BorderBrush="{StaticResource Hairline}"
                 BorderThickness="0,1,0,0" Padding="14,8">
-            <Border.Style>
-                <Style TargetType="Border">
-                    <Setter Property="Background">
-                        <Setter.Value>
-                            <SolidColorBrush Color="#ffffff" />
-                        </Setter.Value>
-                    </Setter>
-                    <Style.Triggers>
-                        <DataTrigger Binding="{Binding DataContext.StatusFlash, RelativeSource={RelativeSource AncestorType=Window}}" Value="True">
-                            <DataTrigger.EnterActions>
-                                <BeginStoryboard x:Name="FlashBgStoryboard">
-                                    <Storyboard RepeatBehavior="Forever">
-                                        <ColorAnimation Storyboard.TargetProperty="Background.Color"
-                                                        To="#2d7d50" Duration="0:0:1.25" AutoReverse="True" />
-                                    </Storyboard>
-                                </BeginStoryboard>
-                            </DataTrigger.EnterActions>
-                            <DataTrigger.ExitActions>
-                                <RemoveStoryboard BeginStoryboardName="FlashBgStoryboard" />
-                                <BeginStoryboard>
-                                    <Storyboard>
-                                        <ColorAnimation Storyboard.TargetProperty="Background.Color"
-                                                        To="#ffffff" Duration="0:0:0.6" />
-                                    </Storyboard>
-                                </BeginStoryboard>
-                            </DataTrigger.ExitActions>
-                        </DataTrigger>
-                    </Style.Triggers>
-                </Style>
-            </Border.Style>
             <DockPanel>
                 <StackPanel DockPanel.Dock="Left" Orientation="Horizontal" VerticalAlignment="Center"
                             Margin="0,0,12,0"
@@ -564,37 +538,37 @@
                             <TextBlock Text="Target: " Foreground="{StaticResource MutedText}" FontSize="11" />
                             <TextBlock Text="{Binding TargetMappedCount}" Foreground="#2d7d50" FontWeight="Bold" FontSize="11" />
                             <TextBlock Text=" mapped, " Foreground="{StaticResource MutedText}" FontSize="11" />
-                            <TextBlock Text="{Binding TargetUnmappedCount}" Foreground="#8a6010" FontWeight="Bold" FontSize="11" />
+                            <TextBlock Text="{Binding TargetUnmappedCount}" Foreground="{StaticResource WarnText}" FontWeight="Bold" FontSize="11" />
                             <TextBlock Text=" unmapped" Foreground="{StaticResource MutedText}" FontSize="11" />
                         </StackPanel>
                     </Border>
-                    <Border Background="{StaticResource AutoTint}" CornerRadius="4" Padding="7,2" Margin="0,0,5,0">
+                    <Border Style="{StaticResource StatChip}" Background="{StaticResource AutoTint}">
                         <TextBlock FontSize="11" FontWeight="SemiBold" Foreground="#2d7d50"
                                    Text="{Binding ExactCount, StringFormat={}exact {0}}"
                                    ToolTip="Header names matched exactly" />
                     </Border>
-                    <Border Background="#eaf2ec" CornerRadius="4" Padding="7,2" Margin="0,0,5,0">
+                    <Border Style="{StaticResource StatChip}" Background="#eaf2ec">
                         <TextBlock FontSize="11" FontWeight="SemiBold" Foreground="#336650"
                                    Text="{Binding AliasCount, StringFormat={}alias {0}}"
                                    ToolTip="Matched through a synonym group" />
                     </Border>
-                    <Border Background="#e8ede9" CornerRadius="4" Padding="7,2" Margin="0,0,5,0">
+                    <Border Style="{StaticResource StatChip}" Background="#e8ede9">
                         <TextBlock FontSize="11" FontWeight="SemiBold" Foreground="#6e8078"
                                    Text="{Binding QualifiedCount, StringFormat={}qualified {0}}"
                                    ToolTip="Matched through a qualified rule" />
                     </Border>
-                    <Border Background="{StaticResource StrongFuzzyBg}" CornerRadius="4" Padding="7,2" Margin="0,0,5,0">
+                    <Border Style="{StaticResource StatChip}" Background="{StaticResource StrongFuzzyBg}">
                         <TextBlock FontSize="11" FontWeight="SemiBold" Foreground="{StaticResource StrongFuzzyText}"
                                    Text="{Binding FuzzyStrongCount, StringFormat={}fuzzy &gt;90% {0}}"
                                    ToolTip="High-confidence fuzzy matches (above 90%) — likely fine; headers tinted light amber" />
                     </Border>
-                    <Border Background="{StaticResource WarnBg}" CornerRadius="4" Padding="7,2" BorderBrush="{StaticResource WarnText}" BorderThickness="1" Margin="0,0,5,0">
+                    <Border Style="{StaticResource StatChip}" Background="{StaticResource WarnBg}" BorderBrush="{StaticResource WarnText}" BorderThickness="1">
                         <TextBlock FontSize="11" FontWeight="SemiBold" Foreground="{StaticResource WarnText}"
                                    Text="{Binding FuzzyBorderlineCount, StringFormat={}fuzzy 90% {0}}"
                                    ToolTip="Borderline fuzzy matches (at the 90% floor) — most worth a glance; headers tinted amber with a border" />
                     </Border>
                     <!-- Weak fuzzy chip — only shown when weak matches exist (weak-fuzzy toggle on). -->
-                    <Border Background="{StaticResource WeakFuzzyBg}" CornerRadius="4" Padding="7,2" BorderBrush="{StaticResource WeakFuzzyText}" BorderThickness="1"
+                    <Border Style="{StaticResource StatChip}" Background="{StaticResource WeakFuzzyBg}" BorderBrush="{StaticResource WeakFuzzyText}" BorderThickness="1"
                             Visibility="{Binding FuzzyWeakCount, Converter={StaticResource CountToVis}}">
                         <TextBlock FontSize="11" FontWeight="SemiBold" Foreground="{StaticResource WeakFuzzyText}"
                                    Text="{Binding FuzzyWeakCount, StringFormat={}fuzzy &lt;90% {0}}"
@@ -605,31 +579,8 @@
                 <Button DockPanel.Dock="Right" Content="Execute ▸" Style="{StaticResource PrimaryButton}"
                         MinWidth="140" Margin="12,0,0,0" Command="{Binding DataContext.WriteCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                         ToolTip="Write every mapped, non-hidden column to the output copy" />
-                <TextBlock TextWrapping="Wrap" VerticalAlignment="Center" FontSize="12">
-                    <TextBlock.Style>
-                        <Style TargetType="TextBlock">
-                            <Setter Property="Foreground">
-                                <Setter.Value>
-                                    <SolidColorBrush Color="#1a2420" />
-                                </Setter.Value>
-                            </Setter>
-                            <Style.Triggers>
-                                <DataTrigger Binding="{Binding DataContext.StatusFlash, RelativeSource={RelativeSource AncestorType=Window}}" Value="True">
-                                    <DataTrigger.EnterActions>
-                                        <BeginStoryboard x:Name="FlashTextStoryboard">
-                                            <Storyboard RepeatBehavior="Forever">
-                                                <ColorAnimation Storyboard.TargetProperty="Foreground.Color"
-                                                                To="#ffffff" Duration="0:0:1.25" AutoReverse="True" />
-                                            </Storyboard>
-                                        </BeginStoryboard>
-                                    </DataTrigger.EnterActions>
-                                    <DataTrigger.ExitActions>
-                                        <RemoveStoryboard BeginStoryboardName="FlashTextStoryboard" />
-                                    </DataTrigger.ExitActions>
-                                </DataTrigger>
-                            </Style.Triggers>
-                        </Style>
-                    </TextBlock.Style>
+                <TextBlock TextWrapping="Wrap" VerticalAlignment="Center" FontSize="12"
+                           Foreground="{StaticResource InkText}">
                     <Run Text="{Binding DataContext.Status, Mode=OneWay, RelativeSource={RelativeSource AncestorType=Window}}" />
                     <Hyperlink Command="{Binding DataContext.OpenOutputFileCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                                ToolTip="{Binding DataContext.OutputFilePath, Converter={StaticResource StringToUpper}, RelativeSource={RelativeSource AncestorType=Window}}"
@@ -645,19 +596,6 @@
                                     <DataTrigger Binding="{Binding DataContext.HasOutputFile, RelativeSource={RelativeSource AncestorType=Window}}" Value="False">
                                         <Setter Property="IsEnabled" Value="False" />
                                     </DataTrigger>
-                                    <DataTrigger Binding="{Binding DataContext.StatusFlash, RelativeSource={RelativeSource AncestorType=Window}}" Value="True">
-                                        <DataTrigger.EnterActions>
-                                            <BeginStoryboard x:Name="FlashLinkStoryboard">
-                                                <Storyboard RepeatBehavior="Forever">
-                                                    <ColorAnimation Storyboard.TargetProperty="Foreground.Color"
-                                                                    To="#99ccff" Duration="0:0:1.25" AutoReverse="True" />
-                                                </Storyboard>
-                                            </BeginStoryboard>
-                                        </DataTrigger.EnterActions>
-                                        <DataTrigger.ExitActions>
-                                            <RemoveStoryboard BeginStoryboardName="FlashLinkStoryboard" />
-                                        </DataTrigger.ExitActions>
-                                    </DataTrigger>
                                 </Style.Triggers>
                             </Style>
                         </Hyperlink.Style>
@@ -666,5 +604,11 @@
                 </TextBlock>
             </DockPanel>
         </Border>
+
+        <!-- Success toast — floats above the grids on a successful Execute, replacing the
+             old footer flash. Queue lives on MainViewModel, reached via the Window. -->
+        <md:Snackbar Grid.RowSpan="5" VerticalAlignment="Bottom" HorizontalAlignment="Center"
+                     Margin="0,0,0,52"
+                     MessageQueue="{Binding DataContext.StatusMessages, RelativeSource={RelativeSource AncestorType=Window}}" />
     </Grid>
 </UserControl>

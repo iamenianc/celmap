@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using CelMap.Core;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using MaterialDesignThemes.Wpf;
 
 namespace CelMap.App;
 
@@ -149,31 +150,20 @@ public sealed partial class MainViewModel : ObservableObject
     [ObservableProperty]
     private string _status = "Drop a source and a target file, check the header rows, then Map.";
 
-    // Briefly true after a successful Execute, so the status bar can flash to draw the eye.
-    [ObservableProperty]
-    private bool _statusFlash;
+    /// <summary>Queue driving the success toast shown after a write (see MappingView's Snackbar).</summary>
+    public SnackbarMessageQueue StatusMessages { get; } = new(TimeSpan.FromSeconds(5));
 
-    private System.Threading.CancellationTokenSource? _flashCts;
-
-    private async void FlashStatus()
+    /// <summary>Pop a transient toast announcing a successful write, with an action to open the file.</summary>
+    private void FlashStatus()
     {
-        _flashCts?.Cancel();
-        _flashCts = new System.Threading.CancellationTokenSource();
-        var token = _flashCts.Token;
-
-        StatusFlash = true;
-        try
-        {
-            await Task.Delay(TimeSpan.FromSeconds(5), token);
-        }
-        catch (System.Threading.Tasks.TaskCanceledException)
-        {
-        }
-
-        if (_flashCts.Token == token)
-        {
-            StatusFlash = false;
-        }
+        StatusMessages.Enqueue(
+            content: $"Done — {Mapping.LinkedCount} column(s) written.",
+            actionContent: "OPEN",
+            actionHandler: _ => OpenOutputFile(),
+            actionArgument: null,
+            promote: false,
+            neverConsiderToBeDuplicate: true,
+            durationOverride: TimeSpan.FromSeconds(6));
     }
 
     [ObservableProperty]
@@ -185,9 +175,6 @@ public sealed partial class MainViewModel : ObservableObject
     [RelayCommand]
     private void OpenOutputFile()
     {
-        _flashCts?.Cancel();
-        StatusFlash = false;
-
         if (string.IsNullOrEmpty(OutputFilePath) || !File.Exists(OutputFilePath))
         {
             Status = "The output file is no longer available.";

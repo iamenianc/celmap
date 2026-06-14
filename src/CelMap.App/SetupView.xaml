@@ -4,6 +4,7 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:local="clr-namespace:CelMap.App"
+             xmlns:md="http://materialdesigninxaml.net/winfx/xaml/themes"
              mc:Ignorable="d"
              d:DataContext="{d:DesignInstance local:SetupViewModel}">
     <Grid Margin="16">
@@ -32,6 +33,7 @@
                 <TextBlock Text="Aa" FontSize="11" Foreground="{StaticResource MutedText}"
                            VerticalAlignment="Center" Margin="0,0,5,0" />
                 <ComboBox Width="110" FontSize="11"
+                          Style="{StaticResource MaterialDesignComboBox}"
                           ItemsSource="{Binding DataContext.DensityOptions, RelativeSource={RelativeSource AncestorType=Window}}"
                           SelectedItem="{Binding DataContext.UiDensity, RelativeSource={RelativeSource AncestorType=Window}}"
                           ToolTip="Display size — Large for easier reading, Compact for more on screen" />
@@ -40,7 +42,7 @@
 
         <!-- Two panels side by side: Source and Target. Fixed height keeps the
              window compact regardless of how many columns a sheet has. -->
-        <Grid Grid.Row="1" Height="300">
+        <Grid Grid.Row="1" Height="330">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="14" />
@@ -71,21 +73,17 @@
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
                         <StackPanel Grid.Column="0">
-                            <StackPanel Orientation="Horizontal" VerticalAlignment="Bottom">
-                                <Label Content="Sheet" />
-                                <TextBlock Text="{Binding SourceRowCountDisplay}"
-                                           Foreground="{StaticResource MutedText}"
-                                           FontSize="11"
-                                           VerticalAlignment="Center"
-                                           Margin="6,0,0,3" />
-                            </StackPanel>
                             <ComboBox ItemsSource="{Binding SourceSheets}"
-                                      SelectedItem="{Binding SelectedSourceSheet}" />
+                                      SelectedItem="{Binding SelectedSourceSheet}"
+                                      Style="{StaticResource FieldCombo}"
+                                      md:HintAssist.Hint="Sheet"
+                                      md:HintAssist.HelperText="{Binding SourceRowCountDisplay}" />
                         </StackPanel>
                         <StackPanel Grid.Column="2">
-                            <Label Content="Header row" />
                             <TextBox Text="{Binding SourceHeaderRow, UpdateSourceTrigger=PropertyChanged}"
-                                     Width="60" HorizontalAlignment="Left" />
+                                     Style="{StaticResource Field}"
+                                     md:HintAssist.Hint="Header row"
+                                     Width="76" HorizontalAlignment="Left" />
                         </StackPanel>
                     </Grid>
 
@@ -108,14 +106,14 @@
 
                     <Border DockPanel.Dock="Top" Style="{StaticResource DropZone}" Cursor="Arrow">
                         <StackPanel VerticalAlignment="Center">
-                            <Label Content="Choose a target template" />
                             <ComboBox ItemsSource="{Binding TargetChoices}"
                                       SelectedItem="{Binding SelectedTargetChoice}"
                                       DisplayMemberPath="DisplayName"
-                                      FontSize="14"
+                                      Style="{StaticResource FieldCombo}"
+                                      md:HintAssist.Hint="Choose a target template"
                                       ToolTip="Select a target template from the approved templates folder" />
                             <TextBlock Text="No templates found — change the folder or use a custom file." FontSize="11"
-                                       Foreground="#8a6010" Margin="0,4,0,0" TextWrapping="Wrap">
+                                       Foreground="{StaticResource WarnText}" Margin="0,4,0,0" TextWrapping="Wrap">
                                 <TextBlock.Style>
                                     <Style TargetType="TextBlock">
                                         <Setter Property="Visibility" Value="Collapsed" />
@@ -137,27 +135,23 @@
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
                         <StackPanel Grid.Column="0">
-                            <StackPanel Orientation="Horizontal" VerticalAlignment="Bottom">
-                                <Label Content="Sheet" />
-                                <TextBlock Text="{Binding TargetRowCountDisplay}"
-                                           Foreground="{StaticResource MutedText}"
-                                           FontSize="11"
-                                           VerticalAlignment="Center"
-                                           Margin="6,0,0,3" />
-                            </StackPanel>
                             <ComboBox ItemsSource="{Binding TargetSheets}"
-                                      SelectedItem="{Binding SelectedTargetSheet}" />
+                                      SelectedItem="{Binding SelectedTargetSheet}"
+                                      Style="{StaticResource FieldCombo}"
+                                      md:HintAssist.Hint="Sheet"
+                                      md:HintAssist.HelperText="{Binding TargetRowCountDisplay}" />
                         </StackPanel>
                         <StackPanel Grid.Column="2">
-                            <Label Content="Header row" />
                             <TextBox Text="{Binding TargetHeaderRow, UpdateSourceTrigger=PropertyChanged}"
-                                     Width="60" HorizontalAlignment="Left" />
+                                     Style="{StaticResource Field}"
+                                     md:HintAssist.Hint="Header row"
+                                     Width="76" HorizontalAlignment="Left" />
                         </StackPanel>
                     </Grid>
 
                     <!-- Review details fill the space beneath the target picker.
                          Group ID and Review Start Date are the final inputs before mapping. -->
-                    <StackPanel DockPanel.Dock="Top" Margin="0,18,0,0">
+                    <StackPanel DockPanel.Dock="Top" Margin="0,14,0,0">
                         <TextBlock Text="REVIEW DETAILS" Style="{StaticResource SectionHeader}" />
                         <Grid>
                             <Grid.ColumnDefinitions>
@@ -166,23 +160,28 @@
                                 <ColumnDefinition Width="*" />
                             </Grid.ColumnDefinitions>
                             <StackPanel Grid.Column="0">
-                                <Label Content="Group ID (Required)" Target="{Binding ElementName=GroupIdInput}" />
                                 <TextBox x:Name="GroupIdInput"
+                                         Style="{StaticResource RequiredField}"
+                                         md:HintAssist.Hint="Group ID (required)"
+                                         md:HintAssist.HelperText="Must be an integer"
                                          Text="{Binding DataContext.Parameters.GroupIdText, RelativeSource={RelativeSource AncestorType=Window}, UpdateSourceTrigger=PropertyChanged}" />
-                                <TextBlock Text="Must be an integer" FontSize="11"
-                                           Foreground="{StaticResource MutedText}" Margin="0,2,0,0" />
                             </StackPanel>
                             <StackPanel Grid.Column="2">
-                                <Label Content="Review Start Date (Required)" />
-                                <DatePicker SelectedDate="{Binding DataContext.Parameters.ReviewStart, RelativeSource={RelativeSource AncestorType=Window}}"
+                                <DatePicker Style="{StaticResource FieldDate}"
+                                            md:HintAssist.Hint="Review Start Date (required)"
+                                            SelectedDate="{Binding DataContext.Parameters.ReviewStart, RelativeSource={RelativeSource AncestorType=Window}}"
                                             SelectedDateFormat="Short" />
                             </StackPanel>
                         </Grid>
                     </StackPanel>
 
-                    <!-- Template-folder controls: pinned to the bottom of the panel.
+                    <!-- Template-folder controls: pinned to the bottom of the panel, with a
+                         hairline above so they read as a distinct footer rather than colliding
+                         with the Group ID helper text.
                          The folder name is a link that opens Explorer; "Change…" repoints it. -->
-                    <Grid DockPanel.Dock="Bottom" Margin="0,8,0,0">
+                    <Border DockPanel.Dock="Bottom" BorderBrush="{StaticResource Hairline}"
+                            BorderThickness="0,1,0,0" Margin="0,10,0,0" Padding="0,8,0,0">
+                    <Grid>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="Auto" />
                             <ColumnDefinition Width="*" />
@@ -206,6 +205,7 @@
                                 Command="{Binding BrowseCustomTargetCommand}"
                                 ToolTip="Rarely needed — point at a target file outside the templates folder" />
                     </Grid>
+                    </Border>
 
                     <!-- Filler so the folder controls dock to the bottom -->
                     <Grid />
@@ -225,7 +225,7 @@
                 </Grid.ColumnDefinitions>
 
                 <Button Grid.Column="0" Content="Map →" Style="{StaticResource PrimaryButton}"
-                        MinWidth="150" Height="40" VerticalAlignment="Center" HorizontalAlignment="Left"
+                        MinWidth="150" VerticalAlignment="Center" HorizontalAlignment="Left"
                         Command="{Binding DataContext.MatchCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                         ToolTip="Auto-map the confident columns and open the mapping screen" />
 
@@ -235,8 +235,9 @@
                            Visibility="{Binding DataContext.IsParametersValid, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BoolToVis}, ConverterParameter=invert}" />
 
                 <StackPanel Grid.Column="3" VerticalAlignment="Center">
-                    <Label Content="Output folder" />
                     <TextBox Width="240" HorizontalAlignment="Left"
+                             Style="{StaticResource Field}"
+                             md:HintAssist.Hint="Output folder"
                              Text="{Binding DataContext.OutputDirectory, RelativeSource={RelativeSource AncestorType=Window}}" />
                 </StackPanel>
             </Grid>
@@ -260,7 +261,8 @@
                                FontSize="13" Foreground="{StaticResource MutedText}"
                                Text="{Binding LoadProgress, StringFormat='{}{0:0}%'}" />
                 </Grid>
-                <ProgressBar Height="22" Minimum="0" Maximum="100"
+                <ProgressBar Style="{StaticResource MaterialDesignLinearProgressBar}"
+                             Height="22" Minimum="0" Maximum="100"
                              Value="{Binding LoadProgress}" />
                 <TextBlock Text="Estimated — large files take a few seconds to open."
                            FontSize="11" Foreground="{StaticResource MutedText}" Margin="0,5,0,0" />
