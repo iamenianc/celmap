@@ -36,12 +36,16 @@ public sealed partial class MappingRowViewModel : ObservableObject
     /// Set by auto-match initially, then overridable by clicking.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(LinkedSourceLabel))]
+    [NotifyPropertyChangedFor(nameof(LinkColorIndex))]
     [NotifyPropertyChangedFor(nameof(IsLinked))]
     [NotifyPropertyChangedFor(nameof(IsFilled))]
     [NotifyPropertyChangedFor(nameof(BodyState))]
     [NotifyPropertyChangedFor(nameof(StatusText))]
     [NotifyPropertyChangedFor(nameof(IsManualOverride))]
     [NotifyPropertyChangedFor(nameof(IsFuzzyAuto))]
+    [NotifyPropertyChangedFor(nameof(IsFuzzyStrong))]
+    [NotifyPropertyChangedFor(nameof(IsFuzzyBorderline))]
+    [NotifyPropertyChangedFor(nameof(IsFuzzyWeak))]
     [NotifyPropertyChangedFor(nameof(IsFuzzyUnmapped))]
     private HeaderColumn? _linkedSource;
 
@@ -65,6 +69,9 @@ public sealed partial class MappingRowViewModel : ObservableObject
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(StatusText))]
     [NotifyPropertyChangedFor(nameof(IsFuzzyAuto))]
+    [NotifyPropertyChangedFor(nameof(IsFuzzyStrong))]
+    [NotifyPropertyChangedFor(nameof(IsFuzzyBorderline))]
+    [NotifyPropertyChangedFor(nameof(IsFuzzyWeak))]
     private bool _isManualOverride;
 
     /// <summary>Hidden columns collapse to a thin restore strip and are excluded from the
@@ -139,6 +146,11 @@ public sealed partial class MappingRowViewModel : ObservableObject
             ? (string.IsNullOrWhiteSpace(s.Label) ? $"(column {s.ColumnIndex + 1})" : s.Label)
             : "—";
 
+    /// <summary>Index that drives the colour-matched mapping label — the linked source's column
+    /// index, so this target's "← source" strip reads in the same colour as that source's column.
+    /// Negative when nothing is linked (no colour, neutral muted text).</summary>
+    public int LinkColorIndex => LinkedSource?.ColumnIndex ?? -1;
+
     /// <summary>Score of the engine's best candidate (0 if none). Tier is from the original run.</summary>
     public int Score => Original.Score;
     public MatchKind Kind => Original.Candidates.Count > 0 ? Original.Candidates[0].Kind : MatchKind.Fuzzy;
@@ -173,6 +185,21 @@ public sealed partial class MappingRowViewModel : ObservableObject
     public bool IsFuzzyAuto =>
         IsLinked && !IsManualOverride
         && Original.Status == MatchStatus.Auto && Kind == MatchKind.Fuzzy;
+
+    /// <summary>A high-confidence fuzzy auto-pick (>90%): close enough to trust at a glance,
+    /// so it reads as a lighter "probably fine" rather than the full amber "check me".</summary>
+    public bool IsFuzzyStrong => IsFuzzyAuto && Score > 90;
+
+    /// <summary>A borderline fuzzy auto-pick (exactly at the 90% floor) — the ones that most
+    /// warrant a human glance, kept on the strong amber tint.</summary>
+    public bool IsFuzzyBorderline => IsFuzzyAuto && Score == 90;
+
+    /// <summary>A weak fuzzy auto-pick (below 90%, only applied when the weak-fuzzy toggle is
+    /// on) — the least certain auto-matches, flagged most strongly so they get a real check.</summary>
+    public bool IsFuzzyWeak => IsFuzzyAuto && Score < 90;
+
+    /// <summary>Score shown as a percentage for tooltips, e.g. "94%".</summary>
+    public string ScorePercentText => $"{Score}%";
 
     /// <summary>The engine auto-applied a fuzzy match here (≥90% — the only score it auto-applies),
     /// regardless of what the user has done since. Kept so an unmapped fuzzy still reads as

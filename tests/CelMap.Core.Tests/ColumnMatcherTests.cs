@@ -69,6 +69,42 @@ public class ColumnMatcherTests
     }
 
     [Fact]
+    public void WeakFuzzy_RelaxesAutoApplyFloor_ForSub90Matches()
+    {
+        // A typo'd header that fuzzy-scores in the 70–89 band against the target:
+        // below the strong 90% floor, but above the weak 70% floor.
+        var source = Headers("Custmer Naem");   // missing/transposed letters vs "Customer Name"
+        var target = Headers("Customer Name");
+
+        // Strong fuzzy only (default): below 90 → NeedsReview, not applied.
+        var strongOnly = _matcher.Match(source, target,
+            new MatcherOptions(FuzzyEnabled: true, WeakFuzzyEnabled: false));
+        var sm = strongOnly.Mappings[0];
+        Assert.Equal(MatchStatus.NeedsReview, sm.Status);
+        Assert.Null(sm.MatchedSource);
+        Assert.InRange(sm.Score, 70, 89);   // guards the fixture stays in the weak band
+
+        // Weak fuzzy on: same match now clears the relaxed 70% floor → Auto.
+        var withWeak = _matcher.Match(source, target,
+            new MatcherOptions(FuzzyEnabled: true, WeakFuzzyEnabled: true, WeakFuzzyThreshold: 70));
+        var wm = withWeak.Mappings[0];
+        Assert.Equal(MatchStatus.Auto, wm.Status);
+        Assert.Equal(0, wm.MatchedSource!.ColumnIndex);
+    }
+
+    [Fact]
+    public void WeakFuzzy_IsInert_WhenStrongFuzzyIsOff()
+    {
+        // Weak fuzzy relaxes strong fuzzy; with strong off, the fuzzy match stays suppressed.
+        var result = _matcher.Match(
+            Headers("Custmer Naem"),
+            Headers("Customer Name"),
+            new MatcherOptions(FuzzyEnabled: false, WeakFuzzyEnabled: true, WeakFuzzyThreshold: 70));
+
+        Assert.Equal(MatchStatus.Unmatched, result.Mappings[0].Status);
+    }
+
+    [Fact]
     public void FuzzyMatch_DoesNotReuse_SourceClaimedByACertainty()
     {
         // One source column ("Email") exact-matches the "Email" target and would also

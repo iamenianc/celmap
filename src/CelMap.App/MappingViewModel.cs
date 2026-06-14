@@ -75,6 +75,12 @@ public sealed partial class MappingViewModel : ObservableObject
     public int AliasCount => Rows.Count(r => r.IsLinked && !r.IsManualOverride && r.Kind == MatchKind.Alias);
     public int QualifiedCount => Rows.Count(r => r.IsLinked && !r.IsManualOverride && r.Kind == MatchKind.Qualified);
     public int FuzzyCount => Rows.Count(r => r.IsLinked && !r.IsManualOverride && r.Kind == MatchKind.Fuzzy);
+    /// <summary>Fuzzy auto-matches above the 90% floor — high confidence.</summary>
+    public int FuzzyStrongCount => Rows.Count(r => r.IsFuzzyStrong);
+    /// <summary>Fuzzy auto-matches sitting at the 90% floor — borderline, most worth a check.</summary>
+    public int FuzzyBorderlineCount => Rows.Count(r => r.IsFuzzyBorderline);
+    /// <summary>Weak fuzzy auto-matches below 90% (only present when the weak-fuzzy toggle is on).</summary>
+    public int FuzzyWeakCount => Rows.Count(r => r.IsFuzzyWeak);
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(VisibleSourceColumns))]
@@ -230,7 +236,7 @@ public sealed partial class MappingViewModel : ObservableObject
             }
             else
             {
-                ParameterAutoFiller.AutoFill(row, parameters, _aliases);
+                ParameterAutoFiller.AutoFill(row, parameters, _aliases, _sampleRowCount);
             }
             Rows.Add(row);
         }
@@ -261,7 +267,7 @@ public sealed partial class MappingViewModel : ObservableObject
             }
             else
             {
-                ParameterAutoFiller.AutoFill(row, parameters, aliases);
+                ParameterAutoFiller.AutoFill(row, parameters, aliases, _sampleRowCount);
             }
             row.IsHidden = hiddenTargetCols.Contains(tgtIdx);
             Rows.Add(row);
@@ -376,6 +382,9 @@ public sealed partial class MappingViewModel : ObservableObject
         OnPropertyChanged(nameof(AliasCount));
         OnPropertyChanged(nameof(QualifiedCount));
         OnPropertyChanged(nameof(FuzzyCount));
+        OnPropertyChanged(nameof(FuzzyStrongCount));
+        OnPropertyChanged(nameof(FuzzyBorderlineCount));
+        OnPropertyChanged(nameof(FuzzyWeakCount));
         OnPropertyChanged(nameof(VisibleSourceColumns));
         OnPropertyChanged(nameof(VisibleRows));
         OnPropertyChanged(nameof(MappedRows));
@@ -433,11 +442,31 @@ public sealed partial class MappingViewModel : ObservableObject
             }
         }
 
+        // Fuzzy tier carried by the source header: a source picks up the tint of any target it is
+        // fuzzily auto-mapped to. If it feeds more than one such target, the highest score wins.
+        var fuzzyBySource = Rows
+            .Where(r => r.IsFuzzyAuto && !r.IsHidden && r.LinkedSource is not null)
+            .GroupBy(r => r.LinkedSource!.ColumnIndex)
+            .ToDictionary(g => g.Key, g => g.OrderByDescending(r => r.Score).First());
+
         foreach (var s in SourceColumns)
         {
             s.IsLinked = linked.ContainsKey(s.Column.ColumnIndex);
             s.MappedTargetLabel = s.IsLinked ? linked[s.Column.ColumnIndex] : null;
             s.HasPossibleMatch = !s.IsLinked && possibleMatchSourceIndexes.Contains(s.Column.ColumnIndex);
+
+            if (fuzzyBySource.TryGetValue(s.Column.ColumnIndex, out var fuzzyRow))
+            {
+                s.IsFuzzyStrong = fuzzyRow.IsFuzzyStrong;
+                s.IsFuzzyBorderline = fuzzyRow.IsFuzzyBorderline;
+                s.IsFuzzyWeak = fuzzyRow.IsFuzzyWeak;
+                s.FuzzyScorePercentText = fuzzyRow.ScorePercentText;
+            }
+            else
+            {
+                s.IsFuzzyStrong = s.IsFuzzyBorderline = s.IsFuzzyWeak = false;
+                s.FuzzyScorePercentText = string.Empty;
+            }
         }
     }
 }

@@ -101,6 +101,55 @@ public sealed class ExcludeCurrentItemConverter : IMultiValueConverter
         => throw new NotSupportedException();
 }
 
+/// <summary>Visible when the bound integer count is greater than zero; collapsed otherwise.
+/// Used to hide tier chips (e.g. the weak-fuzzy badge) when nothing falls in that tier.</summary>
+public sealed class CountToVisibilityConverter : IValueConverter
+{
+    public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
+        => value is int n && n > 0 ? Visibility.Visible : Visibility.Collapsed;
+
+    public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
+        => throw new NotSupportedException();
+}
+
+/// <summary>Maps a mapped column's link index to one of 20 distinguishable font colours, so the
+/// "→ target" / "← source" label strips that announce a mapping are colour-matched: the same
+/// link pair reads in the same colour on both the source and target grids. The colour is keyed by
+/// the source column index (modulo the palette) so a source keeps one colour across every target
+/// it feeds. A negative/unmapped index yields the neutral muted colour. Colour applies to the font
+/// only. The palette is mid-tone — saturated enough to stay legible as text, not pale washes.</summary>
+public sealed class LinkIndexToBrushConverter : IValueConverter
+{
+    // 20 distinguishable hues, picked for legibility as label text (not pale fills).
+    private static readonly SolidColorBrush[] Palette =
+    {
+        Make(0xC4, 0x33, 0x2D), Make(0xC9, 0x5A, 0x1B), Make(0xB7, 0x84, 0x06), Make(0x8A, 0x8F, 0x00),
+        Make(0x4F, 0x8F, 0x1E), Make(0x18, 0x8A, 0x42), Make(0x10, 0x8B, 0x6F), Make(0x0E, 0x86, 0x97),
+        Make(0x1B, 0x70, 0xB0), Make(0x2C, 0x4F, 0xC0), Make(0x4B, 0x3C, 0xC8), Make(0x6E, 0x33, 0xC0),
+        Make(0x93, 0x2A, 0xB8), Make(0xB0, 0x27, 0x9E), Make(0xBC, 0x2A, 0x6E), Make(0x8A, 0x55, 0x2A),
+        Make(0x5E, 0x7C, 0x4A), Make(0x3A, 0x6E, 0x8C), Make(0x7A, 0x6A, 0x2E), Make(0x6B, 0x4A, 0x8A),
+    };
+
+    private static readonly SolidColorBrush Unmapped = new(Color.FromRgb(0x6E, 0x80, 0x78)); // MutedText
+
+    private static SolidColorBrush Make(byte r, byte g, byte b)
+    {
+        var brush = new SolidColorBrush(Color.FromRgb(r, g, b));
+        brush.Freeze();
+        return brush;
+    }
+
+    public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
+    {
+        if (value is int i && i >= 0)
+            return Palette[i % Palette.Length];
+        return Unmapped;
+    }
+
+    public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
+        => throw new NotSupportedException();
+}
+
 public sealed class StringToUpperConverter : IValueConverter
 {
     public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture) =>

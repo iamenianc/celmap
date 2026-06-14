@@ -12,12 +12,19 @@
         <SolidColorBrush x:Key="WindowBg" Color="#f2f4f3" />
         <SolidColorBrush x:Key="TargetPanelBg" Color="#f8faf9" />
         <SolidColorBrush x:Key="ZebraBg" Color="#f8faf9" />
+        <!-- Header-column zebra band: darker than the #f8faf9 header so the banding is
+             actually visible (ZebraBg is the same color as the header, hence invisible). -->
+        <SolidColorBrush x:Key="HeaderZebraBg" Color="#e9efeb" />
         <SolidColorBrush x:Key="Hairline" Color="#dde3df" />
         <SolidColorBrush x:Key="MutedText" Color="#6e8078" />
         <SolidColorBrush x:Key="InkText" Color="#1a2420" />
         <SolidColorBrush x:Key="LinkedBg" Color="#eaf2ec" />
-        <SolidColorBrush x:Key="WarnBg" Color="#faf0d8" />
+        <SolidColorBrush x:Key="WarnBg" Color="#faf0d8" />            <!-- borderline fuzzy (=90%) -->
         <SolidColorBrush x:Key="WarnText" Color="#8a6010" />
+        <SolidColorBrush x:Key="StrongFuzzyBg" Color="#fbf6e6" />     <!-- high-confidence fuzzy (>90%) -->
+        <SolidColorBrush x:Key="StrongFuzzyText" Color="#a8862b" />
+        <SolidColorBrush x:Key="WeakFuzzyBg" Color="#f7e2cf" />       <!-- weak fuzzy (<90%) -->
+        <SolidColorBrush x:Key="WeakFuzzyText" Color="#a8501a" />
         <SolidColorBrush x:Key="SelectBg" Color="#3d7a5a" />
         <SolidColorBrush x:Key="GridLine" Color="#c8d0cb" />
         <SolidColorBrush x:Key="HeaderCellBg" Color="#f8faf9" />
@@ -234,8 +241,10 @@
         <local:KindToBrushConverter x:Key="KindToBrush" />
         <local:BoolToVisibilityConverter x:Key="BoolToVis" />
         <local:StringMatchToVisibilityConverter x:Key="StateToVis" />
+        <local:CountToVisibilityConverter x:Key="CountToVis" />
         <local:ExcludeCurrentItemConverter x:Key="ExcludeCurrentItem" />
         <local:AvailableSourcesForRowConverter x:Key="AvailableSourcesForRow" />
         <local:StringToUpperConverter x:Key="StringToUpper" />
+        <local:LinkIndexToBrushConverter x:Key="LinkIndexToBrush" />
     </Application.Resources>
 </Application>

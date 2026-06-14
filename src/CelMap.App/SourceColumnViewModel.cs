@@ -18,6 +18,10 @@ public sealed partial class SourceColumnViewModel : ObservableObject
         ? $"(column {Column.ColumnIndex + 1})"
         : Column.Label;
 
+    /// <summary>Index that drives the colour-matched mapping label. Keyed by this source's column
+    /// index so the same source reads in the same colour here and on every target it feeds.</summary>
+    public int LinkColorIndex => Column.ColumnIndex;
+
     /// <summary>First ~10 data values below this column's header, for the preview grid.</summary>
     public IReadOnlyList<string> SampleCells { get; }
 
@@ -28,7 +32,27 @@ public sealed partial class SourceColumnViewModel : ObservableObject
     /// <summary>True if this source column is not mapped but has a possible match of >= 75% confidence.</summary>
     [ObservableProperty]
     private bool _hasPossibleMatch;
-    
+
+    // ---- Fuzzy-match flags (mirrored from the target row this source is auto-mapped to) ----
+    // The fuzzy tier is a property of the auto-match, which the engine produces target-side.
+    // We surface it here so the SOURCE column header can carry the fuzzy tint/border instead.
+
+    /// <summary>This source is the high-confidence (>90%) fuzzy auto-pick of a target.</summary>
+    [ObservableProperty]
+    private bool _isFuzzyStrong;
+
+    /// <summary>This source is the borderline (exactly 90%) fuzzy auto-pick of a target.</summary>
+    [ObservableProperty]
+    private bool _isFuzzyBorderline;
+
+    /// <summary>This source is a weak (&lt;90%) fuzzy auto-pick of a target.</summary>
+    [ObservableProperty]
+    private bool _isFuzzyWeak;
+
+    /// <summary>Score (0–100) of the fuzzy auto-match that tinted this source, for the tooltip.</summary>
+    [ObservableProperty]
+    private string _fuzzyScorePercentText = string.Empty;
+
     /// <summary>The labels of target columns this source is mapped to (joined if multiple).</summary>
     [ObservableProperty]
     private string? _mappedTargetLabel;

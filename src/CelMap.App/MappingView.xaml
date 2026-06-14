@@ -32,9 +32,16 @@
                             Command="{Binding UndoCommand}" ToolTip="Ctrl+Z" />
                     <Button Content="↷ Redo" Style="{StaticResource GhostButton}" Margin="0,0,16,0"
                             Command="{Binding RedoCommand}" ToolTip="Ctrl+Y" />
-                    <CheckBox Content="Fuzzy match · 90%"
-                              IsChecked="{Binding DataContext.FuzzyEnabled, RelativeSource={RelativeSource AncestorType=Window}}" VerticalAlignment="Center" Margin="0,0,16,0"
-                              ToolTip="Fuzzy matches apply at 90% confidence minimum. Uncheck to only allow exact/synonym matches." />
+                    <TextBlock Text="Fuzzy:" FontSize="11" FontWeight="SemiBold" Foreground="{StaticResource MutedText}"
+                               VerticalAlignment="Center" Margin="0,0,8,0" />
+                    <CheckBox Content="Strong · ≥90%"
+                              IsChecked="{Binding DataContext.FuzzyEnabled, RelativeSource={RelativeSource AncestorType=Window}}" VerticalAlignment="Center" Margin="0,0,12,0"
+                              ToolTip="Auto-apply high-confidence fuzzy matches (90% or above). Uncheck to only allow exact/synonym matches." />
+                    <CheckBox Content="Weak · 70–89%"
+                              IsChecked="{Binding DataContext.WeakFuzzyEnabled, RelativeSource={RelativeSource AncestorType=Window}}"
+                              IsEnabled="{Binding DataContext.CanEnableWeakFuzzy, RelativeSource={RelativeSource AncestorType=Window}}"
+                              VerticalAlignment="Center" Margin="0,0,16,0"
+                              ToolTip="Also auto-apply weaker fuzzy matches down to 70%. These are the least certain — verify them. Requires Strong fuzzy to be on." />
                     <ToggleButton Content="Empty Sources" Style="{StaticResource FilterToggle}"
                                   IsChecked="{Binding ShowEmptySources}" VerticalAlignment="Center" Margin="0,0,8,0"
                                   ToolTip="Show source columns that have no data below the header" />
@@ -138,9 +145,11 @@
                                                         <ColumnDefinition Width="Auto" />
                                                         <ColumnDefinition Width="*" />
                                                     </Grid.ColumnDefinitions>
-                                                    <TextBlock Grid.Column="0" Text="→ " FontSize="11" Foreground="{StaticResource MutedText}" />
+                                                    <TextBlock Grid.Column="0" Text="→ " FontSize="11"
+                                                               Foreground="{Binding LinkColorIndex, Converter={StaticResource LinkIndexToBrush}}" />
                                                     <TextBlock Grid.Column="1" Text="{Binding MappedTargetLabel}" FontSize="11"
-                                                               FontWeight="SemiBold" Foreground="{StaticResource Accent}"
+                                                               FontWeight="SemiBold"
+                                                               Foreground="{Binding LinkColorIndex, Converter={StaticResource LinkIndexToBrush}}"
                                                                TextWrapping="Wrap" TextTrimming="CharacterEllipsis" ToolTip="{Binding MappedTargetLabel}" />
                                                 </Grid>
                                             </Border>
@@ -222,6 +231,28 @@
                                         <Setter TargetName="srcHdr" Property="Background" Value="{StaticResource AutoTint}" />
                                         <Setter TargetName="srcCheck" Property="Visibility" Value="Visible" />
                                     </DataTrigger>
+                                    <!-- High-confidence fuzzy (>90%): lighter tint — likely fine, lower-priority glance. -->
+                                    <DataTrigger Binding="{Binding IsFuzzyStrong}" Value="True">
+                                        <Setter TargetName="srcHdr" Property="Background" Value="{StaticResource StrongFuzzyBg}" />
+                                        <Setter TargetName="srcHdr" Property="ToolTip"
+                                                Value="{Binding FuzzyScorePercentText, StringFormat='Fuzzy match · {0} (high confidence) — click to verify'}" />
+                                    </DataTrigger>
+                                    <!-- Borderline fuzzy (at the 90% floor): full amber + amber border — most worth a look. -->
+                                    <DataTrigger Binding="{Binding IsFuzzyBorderline}" Value="True">
+                                        <Setter TargetName="srcHdr" Property="Background" Value="{StaticResource WarnBg}" />
+                                        <Setter TargetName="srcHdr" Property="BorderBrush" Value="{StaticResource WarnText}" />
+                                        <Setter TargetName="srcHdr" Property="BorderThickness" Value="1" />
+                                        <Setter TargetName="srcHdr" Property="ToolTip"
+                                                Value="{Binding FuzzyScorePercentText, StringFormat='Fuzzy match · {0} (borderline) — please verify'}" />
+                                    </DataTrigger>
+                                    <!-- Weak fuzzy (<90%, only via the weak-fuzzy toggle): orange + border — least certain, verify. -->
+                                    <DataTrigger Binding="{Binding IsFuzzyWeak}" Value="True">
+                                        <Setter TargetName="srcHdr" Property="Background" Value="{StaticResource WeakFuzzyBg}" />
+                                        <Setter TargetName="srcHdr" Property="BorderBrush" Value="{StaticResource WeakFuzzyText}" />
+                                        <Setter TargetName="srcHdr" Property="BorderThickness" Value="1" />
+                                        <Setter TargetName="srcHdr" Property="ToolTip"
+                                                Value="{Binding FuzzyScorePercentText, StringFormat='Weak fuzzy match · {0} (below 90%) — please verify'}" />
+                                    </DataTrigger>
                                     <!-- Hover-sync: target hovered, this is its mapped source. -->
                                     <DataTrigger Binding="{Binding IsHoverHighlighted}" Value="True">
                                         <Setter TargetName="srcHdr" Property="BorderBrush" Value="{StaticResource Accent}" />
@@ -268,7 +299,7 @@
                     <Run Text="TARGET  " /><Run Text="{Binding DataContext.Setup.TargetFileName, Converter={StaticResource StringToUpper}, Mode=OneWay, RelativeSource={RelativeSource AncestorType=Window}}" Foreground="{StaticResource InkText}" />
                 </TextBlock>
                 <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
-                    <ItemsControl ItemsSource="{Binding VisibleRows}">
+                    <ItemsControl ItemsSource="{Binding VisibleRows}" AlternationCount="2">
                         <ItemsControl.ItemsPanel>
                             <ItemsPanelTemplate><StackPanel Orientation="Horizontal" /></ItemsPanelTemplate>
                         </ItemsControl.ItemsPanel>
@@ -308,18 +339,21 @@
                                                 <TranslateTransform Y="{Binding VerticalOffset, RelativeSource={RelativeSource AncestorType=ScrollViewer}}" />
                                             </StackPanel.RenderTransform>
                                             
-                                            <!-- mapped-source label strip -->
+                                            <!-- mapped-source label strip — transparent so the column zebra
+                                                 band on "col" shows through. -->
                                             <Border BorderBrush="{StaticResource GridLine}" BorderThickness="0,0,0,1"
-                                                    Background="#ffffff" Padding="8,3" Height="36"
+                                                    Background="Transparent" Padding="8,3" Height="36"
                                                     Width="{Binding ActualWidth, ElementName=hdr}">
                                                 <Grid Visibility="{Binding IsLinked, Converter={StaticResource BoolToVis}, ConverterParameter=hidden}">
                                                     <Grid.ColumnDefinitions>
                                                         <ColumnDefinition Width="Auto" />
                                                         <ColumnDefinition Width="*" />
                                                     </Grid.ColumnDefinitions>
-                                                    <TextBlock Grid.Column="0" Text="← " FontSize="11" Foreground="{StaticResource MutedText}" />
+                                                    <TextBlock Grid.Column="0" Text="← " FontSize="11"
+                                                               Foreground="{Binding LinkColorIndex, Converter={StaticResource LinkIndexToBrush}}" />
                                                     <TextBlock Grid.Column="1" Text="{Binding LinkedSourceLabel}" FontSize="11"
-                                                               FontWeight="SemiBold" Foreground="{StaticResource Accent}"
+                                                               FontWeight="SemiBold"
+                                                               Foreground="{Binding LinkColorIndex, Converter={StaticResource LinkIndexToBrush}}"
                                                                TextWrapping="Wrap" TextTrimming="CharacterEllipsis" ToolTip="{Binding LinkedSourceLabel}" />
                                                 </Grid>
                                             </Border>
@@ -331,6 +365,9 @@
                                                     Tag="{Binding DataContext, RelativeSource={RelativeSource AncestorType=UserControl}}">
                                                 <Border.Style>
                                                     <Style TargetType="Border" BasedOn="{StaticResource GridHeaderCell}">
+                                                        <!-- Transparent base so the column zebra band on "col"
+                                                             shows through; state triggers below repaint it. -->
+                                                        <Setter Property="Background" Value="Transparent" />
                                                         <Style.Triggers>
                                                             <DataTrigger Binding="{Binding IsLocked}" Value="True">
                                                                 <Setter Property="Cursor" Value="Arrow" />
@@ -422,11 +459,14 @@
                                                  ellipsis, so a long value can't widen the column past its header. -->
                                             <Border x:Name="preview" Background="Transparent"
                                                     Visibility="{Binding BodyState, Converter={StaticResource StateToVis}, ConverterParameter=Preview}">
-                                                <ItemsControl ItemsSource="{Binding SampleCells}" AlternationCount="2"
+                                                <!-- No per-row zebra here: the column-level zebra band (on "col")
+                                                     carries the banding, so preview cells are transparent with
+                                                     only the hairline row separator. -->
+                                                <ItemsControl ItemsSource="{Binding SampleCells}"
                                                               Width="{Binding ActualWidth, ElementName=hdr}">
                                                     <ItemsControl.ItemTemplate>
                                                         <DataTemplate>
-                                                            <Border Style="{StaticResource ZebraRowCell}">
+                                                            <Border Background="Transparent" BorderBrush="#e8ede9" BorderThickness="0,0,0,1">
                                                                 <TextBlock Text="{Binding}" Style="{StaticResource GridDataCell}"
                                                                            TextTrimming="CharacterEllipsis" ToolTip="{Binding}" />
                                                             </Border>
@@ -440,12 +480,21 @@
                                 </Grid>
 
                                 <DataTemplate.Triggers>
+                                    <!-- Zebra banding across target columns: alternate columns get a subtle
+                                         shade down the WHOLE column (header + preview body) so the eye can tell
+                                         adjacent columns apart. The band sits on the column container; the header
+                                         and body layers above are transparent so it shows through. The header's
+                                         own state triggers (linked/manual/constant/fuzzy-unmapped) still paint
+                                         over the band when a column carries real status. -->
+                                    <DataTrigger Binding="{Binding Path=(ItemsControl.AlternationIndex), RelativeSource={RelativeSource AncestorType=ContentPresenter}}" Value="1">
+                                        <Setter TargetName="col" Property="Background" Value="{StaticResource HeaderZebraBg}" />
+                                    </DataTrigger>
                                     <DataTrigger Binding="{Binding IsLinked}" Value="True">
                                         <Setter TargetName="hdr" Property="Background" Value="{StaticResource AutoTint}" />
                                     </DataTrigger>
-                                    <DataTrigger Binding="{Binding IsFuzzyAuto}" Value="True">
-                                        <Setter TargetName="hdr" Property="Background" Value="{StaticResource WarnBg}" />
-                                    </DataTrigger>
+                                    <!-- Fuzzy-match tinting (strong/borderline/weak) now lives on the SOURCE
+                                         column header (srcHdr) — the source is what the user verifies. The
+                                         target keeps only the IsFuzzyUnmapped flag below for removed guesses. -->
                                     <!-- A 90%+ fuzzy auto-pick the user has unmapped: keep it flagged
                                          (amber fill + border) so the removed guess isn't lost. -->
                                     <DataTrigger Binding="{Binding IsFuzzyUnmapped}" Value="True">
@@ -534,10 +583,22 @@
                                    Text="{Binding QualifiedCount, StringFormat={}qualified {0}}"
                                    ToolTip="Matched through a qualified rule" />
                     </Border>
-                    <Border Background="{StaticResource WarnBg}" CornerRadius="4" Padding="7,2">
+                    <Border Background="{StaticResource StrongFuzzyBg}" CornerRadius="4" Padding="7,2" Margin="0,0,5,0">
+                        <TextBlock FontSize="11" FontWeight="SemiBold" Foreground="{StaticResource StrongFuzzyText}"
+                                   Text="{Binding FuzzyStrongCount, StringFormat={}fuzzy &gt;90% {0}}"
+                                   ToolTip="High-confidence fuzzy matches (above 90%) — likely fine; headers tinted light amber" />
+                    </Border>
+                    <Border Background="{StaticResource WarnBg}" CornerRadius="4" Padding="7,2" BorderBrush="{StaticResource WarnText}" BorderThickness="1" Margin="0,0,5,0">
                         <TextBlock FontSize="11" FontWeight="SemiBold" Foreground="{StaticResource WarnText}"
-                                   Text="{Binding FuzzyCount, StringFormat={}fuzzy {0}}"
-                                   ToolTip="Fuzzy matches (90%+) — worth a glance; their headers are tinted amber" />
+                                   Text="{Binding FuzzyBorderlineCount, StringFormat={}fuzzy 90% {0}}"
+                                   ToolTip="Borderline fuzzy matches (at the 90% floor) — most worth a glance; headers tinted amber with a border" />
+                    </Border>
+                    <!-- Weak fuzzy chip — only shown when weak matches exist (weak-fuzzy toggle on). -->
+                    <Border Background="{StaticResource WeakFuzzyBg}" CornerRadius="4" Padding="7,2" BorderBrush="{StaticResource WeakFuzzyText}" BorderThickness="1"
+                            Visibility="{Binding FuzzyWeakCount, Converter={StaticResource CountToVis}}">
+                        <TextBlock FontSize="11" FontWeight="SemiBold" Foreground="{StaticResource WeakFuzzyText}"
+                                   Text="{Binding FuzzyWeakCount, StringFormat={}fuzzy &lt;90% {0}}"
+                                   ToolTip="Weak fuzzy matches (below 90%) — least certain; headers tinted orange with a border" />
                     </Border>
                 </StackPanel>
                 <!-- Execute button -->

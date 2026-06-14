@@ -121,10 +121,22 @@ public sealed partial class MainViewModel : ObservableObject
     //  Output / write options                                                //
     // ====================================================================== //
 
+    /// <summary>Auto-apply strong fuzzy matches at the 90% floor.</summary>
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanEnableWeakFuzzy))]
     private bool _fuzzyEnabled = true;
 
+    /// <summary>Also auto-apply weaker fuzzy matches (70–89%). Only meaningful while
+    /// <see cref="FuzzyEnabled"/> is on — weak fuzzy relaxes the strong floor, it isn't
+    /// an independent mode.</summary>
+    [ObservableProperty]
+    private bool _weakFuzzyEnabled;
+
+    /// <summary>Weak fuzzy can only be toggled while strong fuzzy is on.</summary>
+    public bool CanEnableWeakFuzzy => FuzzyEnabled;
+
     public int ConfidenceThreshold => 90;
+    public int WeakFuzzyThreshold => 70;
 
     [ObservableProperty]
     private string _outputDirectory;
@@ -235,6 +247,7 @@ public sealed partial class MainViewModel : ObservableObject
             string? sourcePassword = Setup.SourcePassword;
             int tgtHeaderRow = Setup.TargetHeaderRow - 1;
             bool isFuzzyEnabled = FuzzyEnabled;
+            bool isWeakFuzzyEnabled = WeakFuzzyEnabled;
 
             var activeCovers = new HashSet<string>();
             if (Parameters.DefaultCoverGSC) activeCovers.Add("GSC");
@@ -263,7 +276,9 @@ public sealed partial class MainViewModel : ObservableObject
                 var tgtH = HeaderExtractor.Extract(tgt, tgtHeaderRow);
                 var res = _matcher.Match(
                     srcH, tgtH,
-                    new MatcherOptions(ConfidenceThreshold: 90, FuzzyEnabled: isFuzzyEnabled, ActiveCovers: activeCovers),
+                    new MatcherOptions(ConfidenceThreshold: 90, FuzzyEnabled: isFuzzyEnabled,
+                                       ActiveCovers: activeCovers,
+                                       WeakFuzzyEnabled: isWeakFuzzyEnabled, WeakFuzzyThreshold: 70),
                     s => src.ColumnIsEmpty(s.ColumnIndex, srcHdr));
                 return (src, tgt, srcH, tgtH, res, srcHdr);
             });
@@ -353,6 +368,23 @@ public sealed partial class MainViewModel : ObservableObject
 
     partial void OnFuzzyEnabledChanged(bool value)
     {
+        // Weak fuzzy is a relaxation of strong fuzzy; it can't stand on its own. Turning
+        // strong off clears it (which re-enters this path via WeakFuzzyEnabled's setter,
+        // but ReapplyFuzzyRules is idempotent so a second re-match is harmless).
+        if (!value && WeakFuzzyEnabled)
+        {
+            WeakFuzzyEnabled = false;
+            return;
+        }
+        ReapplyFuzzyRules();
+    }
+
+    partial void OnWeakFuzzyEnabledChanged(bool value) => ReapplyFuzzyRules();
+
+    /// <summary>Re-run the matcher against the loaded sheets with the current fuzzy toggles,
+    /// preserving manual overrides and hidden columns. Shared by both fuzzy toggles.</summary>
+    private void ReapplyFuzzyRules()
+    {
         if (Mapping.Rows.Count == 0 || _sourceData is null) return;
 
         var manual = Mapping.Rows.Where(r => r.IsManualOverride)
@@ -379,11 +411,16 @@ public sealed partial class MainViewModel : ObservableObject
 
         var result = _matcher.Match(
             _sourceHeaders, _targetHeaders,
-            new MatcherOptions(ConfidenceThreshold: 90, FuzzyEnabled: value, ActiveCovers: activeCovers),
+            new MatcherOptions(ConfidenceThreshold: 90, FuzzyEnabled: FuzzyEnabled,
+                               ActiveCovers: activeCovers,
+                               WeakFuzzyEnabled: WeakFuzzyEnabled, WeakFuzzyThreshold: 70),
             s => _sourceData.ColumnIsEmpty(s.ColumnIndex, _matchedSrcHeaderRow));
 
         Mapping.RepopulateAfterMatchRuleChange(result, manual, hidden, Parameters, _aliases);
-        Status = $"Re-applied match rules (Fuzzy: {(value ? "On (90%)" : "Off")}). {Mapping.LinkedCount} column(s) linked.";
+        string fuzzyState = !FuzzyEnabled ? "Off"
+            : WeakFuzzyEnabled ? "On (70%+)"
+            : "On (90%+)";
+        Status = $"Re-applied match rules (Fuzzy: {fuzzyState}). {Mapping.LinkedCount} column(s) linked.";
     }
 
     private bool CanWrite => Mapping.Rows.Count > 0 && !IsBusy;

@@ -130,8 +130,10 @@ public sealed class ColumnMatcher : IColumnMatcher
                 target, null, 0, MatchStatus.Unmatched,
                 Array.Empty<MatchCandidate>(), false);
 
-        // Below threshold → flag for review, don't auto-apply.
-        if (best.Score < options.ConfidenceThreshold)
+        // A fuzzy winner clears the (possibly relaxed) fuzzy floor; certainties always use
+        // the strong confidence threshold. Below the relevant floor → flag for review.
+        int floor = best.Kind == MatchKind.Fuzzy ? options.EffectiveFuzzyFloor : options.ConfidenceThreshold;
+        if (best.Score < floor)
             return new TargetColumnMapping(target, null, best.Score, MatchStatus.NeedsReview, candidates, false);
 
         // Ambiguity only applies WITHIN the best candidate's tier: a certainty
@@ -140,7 +142,7 @@ public sealed class ColumnMatcher : IColumnMatcher
         var runnerUp = candidates.Count > 1 ? candidates[1] : null;
         if (runnerUp is not null &&
             runnerUp.Kind == best.Kind &&
-            runnerUp.Score >= options.ConfidenceThreshold &&
+            runnerUp.Score >= floor &&
             best.Score - runnerUp.Score <= options.AmbiguityMargin)
         {
             return new TargetColumnMapping(target, null, best.Score, MatchStatus.Ambiguous, candidates, false);
