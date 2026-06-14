@@ -212,6 +212,20 @@
             <Setter Property="MinHeight" Value="64" />
         </Style>
 
+        <!-- Minimalistic context menus: flat solid background, no border lines, no shadow.
+             Material Design otherwise draws a 1px border, a drop shadow, and a shaded icon
+             gutter strip down the left of each item — all read as "lines". -->
+        <Style TargetType="ContextMenu" BasedOn="{StaticResource {x:Type ContextMenu}}">
+            <Setter Property="Background" Value="{StaticResource PanelBg}" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="md:ElevationAssist.Elevation" Value="Dp0" />
+        </Style>
+
+        <!-- Separators are the horizontal divider lines; hide them in our flat menus. -->
+        <Style TargetType="Separator" BasedOn="{StaticResource {x:Type Separator}}">
+            <Setter Property="Visibility" Value="Collapsed" />
+        </Style>
+
         <local:BoolToVisibilityConverter x:Key="BoolToVis" />
         <local:StringMatchToVisibilityConverter x:Key="StateToVis" />
         <local:CountToVisibilityConverter x:Key="CountToVis" />
