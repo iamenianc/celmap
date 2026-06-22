@@ -78,12 +78,17 @@ A decorator `LlmAssistedColumnMatcher : IColumnMatcher` wraps `ColumnMatcher`:
   CopyToOutputDirectory="PreserveNewest"` alongside the existing `synonyms.json` entry.
 
 ### Recommended model (as of 2026-06)
-On a no-GPU CPU box, favor a strong instruction-follower with reliable output:
-- **Default: `phi4-mini` (3.8B) @ `Q4_K_M`** — ~2.3 GB, ~12 tok/s CPU-only, MIT, 128K ctx;
-  great for the small mapping JSON, JSON locked via Ollama `format`.
-- **Quality option for client prose: `qwen3:8b` @ `Q4_K_M`** — ~5 GB, Apache-2.0, noticeably
-  better wording for the client-facing questions (Part B). Slower on CPU but fine for the
-  one batched call per run. Selectable via `llm_config.json` / `CELMAP_LLM_MODEL`.
+On a no-GPU CPU box, favor a strong instruction-follower with reliable structured output.
+The model is fully configurable (`llm_config.json` / `CELMAP_LLM_MODEL`), so any of these can
+be swapped in with **no code change** — just `ollama pull` it and set the name.
+- **Default (CPU): `gemma4:e4b` @ `Q4_K_M`** — effective-4B, small CPU footprint, and
+  **native JSON structured output + function calling**, which makes the Part A mapping JSON
+  more reliable. (`gemma4:e2b` for very low-RAM machines.) Verify Gemma 4 license terms.
+- **Alternative default: `phi4-mini` (3.8B) @ `Q4_K_M`** — ~2.3 GB, ~12 tok/s CPU-only, MIT,
+  128K ctx; solid for the small mapping JSON (JSON locked via Ollama `format`).
+- **Quality tier for client prose (Part B): `gemma4:12b` (if ~16 GB RAM) or `qwen3:8b`
+  (~5 GB, Apache-2.0)** — noticeably better wording for the client-facing questions; fine for
+  the one batched call per run.
 - **Quantization:** `Q4_K_M` (≈92% quality at ≈70% smaller). One-time `ollama pull`, then
   fully offline.
 
