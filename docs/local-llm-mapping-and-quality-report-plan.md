@@ -1,33 +1,36 @@
-# Plan: Local-only LLM mapping assist + unmapped-source quality report for CelMap
+# Plan: Local-LLM mapping assist + client-facing data-quality query document
 
 ## Context
 
 CelMap is a .NET 10 desktop/CLI tool that maps columns between two Excel files using a
 deterministic, tiered engine (Qualified > Exact > Alias > Fuzzy) and copies cell values
-verbatim. Two gaps remain after a run: (1) some target columns stay
-`NeedsReview`/`Ambiguous`/`Unmatched` and need manual resolution, and (2) **source** columns
-that never got mapped are simply dropped with no insight into *why* or whether they hid data
-problems.
+verbatim. Beyond mapping, the real operational need is **client communication**: when a
+client's source spreadsheet has data-quality problems (missing values, duplication, mixed
+formats), a human currently has to spot them and hand-write a query list to send back to the
+client. This is slow and inconsistent.
 
-This work adds two cooperating, **fully local / offline** features:
+This work delivers, **fully local / offline**:
 
-- **A. Local-LLM mapping assist** — an opt-in fallback that, only for low-confidence
-  targets, asks a locally-run quantized model (via Ollama, e.g. `phi4-mini`/an 8B GGUF) to
-  propose a source column. Deterministic results stay authoritative.
-- **B. Unmapped-source quality report** — for every source column the engine did **not**
-  map, compute *easy, deterministic* data-quality findings (duplication, missing data,
-  inconsistencies), optionally have the local model write a plain-English summary, and
-  surface it as a **WPF panel** and as an **extra worksheet in the output file**.
+- **A. Local-LLM mapping assist** — an opt-in fallback that, only for low-confidence target
+  columns, asks a locally-run quantized model (Ollama) to propose a source column.
+  Deterministic results stay authoritative.
+- **B. Client data-quality query document (primary deliverable)** — deterministically detect
+  data-quality issues across **all source columns**, then use the local model to author a
+  clear, professional, **numbered list of questions** to the client. Render it as polished
+  worksheet(s) (a summary/cover sheet + numbered questions, each with an evidence table) added
+  to the mapped output workbook. The reviewer checks/edits it, then sends it to the client.
+  The LLM is used to *maximise the quality of the written communication*; all numbers and
+  evidence tables are computed deterministically so they're always correct.
 
 **Hard constraint (per user):** nothing connects to any external/cloud server. The *only*
 network activity permitted is the **one-time model download** (`ollama pull …`). At runtime
-everything talks at most to a local Ollama instance on `localhost`; with Ollama absent,
-both features degrade gracefully and the rest of CelMap works exactly as today. The
-deterministic quality report needs no model at all and is always available offline.
+everything talks at most to a local Ollama instance on `localhost`; with Ollama absent, the
+question wording falls back to deterministic templates and everything else still works.
 
-Decisions confirmed with the user: quality findings are **deterministic + optional LLM
-summary**; **keep both** the mapping assist and the report; surface the report in the **WPF
-panel** and an **extra output sheet**.
+Decisions confirmed with the user: queries cover **all source columns with issues**; the
+document is written as **sheet(s) in the mapped output file**; it contains a **summary/cover
+sheet** and **numbered questions each with an evidence table** (no client-response column, no
+severity tags); the **LLM mapping assist (Part A) is kept**.
 
 ---
 
@@ -41,114 +44,134 @@ A decorator `LlmAssistedColumnMatcher : IColumnMatcher` wraps `ColumnMatcher`:
 3. Collect targets whose status is not `Auto`, and source columns **not** already claimed by
    a deterministic `Auto` match.
 4. Send **one batched** few-shot request to local Ollama (`/api/chat`, `format=json`,
-   `stream=false`, `temperature=0`) listing unresolved targets + candidate sources with a
-   few sample values each; expect a JSON array of `{target, source|null, confidence}`.
+   `stream=false`, `temperature=0`) listing unresolved targets + candidate sources with a few
+   sample values each; expect a JSON array of `{target, source|null, confidence}`.
 5. Apply high-confidence suggestions: rewrite those targets to `MatchStatus.Auto` with
-   `MatchKind.Llm`, enforcing one-source-per-target (mirrors the existing
-   `SuppressFuzzyReuseOfClaimedSources` claim rule in `ColumnMatcher.cs`).
+   `MatchKind.Llm`, enforcing one-source-per-target (mirrors `SuppressFuzzyReuseOfClaimedSources`
+   in `ColumnMatcher.cs`).
 6. **Any** failure is swallowed → deterministic result returned. Never throws, never blocks.
 
 ### Files (Part A)
 - New `src/CelMap.Core/Llm/IOllamaClient.cs` — `Task<string?> ChatJsonAsync(system, user, ct)`
-  (interface enables unit tests with no live server).
+  and `Task<string?> ChatTextAsync(system, user, ct)` (interface enables tests with no server;
+  text variant is reused by Part B for prose).
 - New `src/CelMap.Core/Llm/OllamaClient.cs` — `HttpClient` to a configurable `localhost`
-  endpoint, using **built-in** `System.Net.Http` + `System.Text.Json` (no new NuGet dep).
+  endpoint, **built-in** `System.Net.Http` + `System.Text.Json` (no new NuGet dep).
 - New `src/CelMap.Core/Llm/LlmConfig.cs` — `record LlmConfig(bool Enabled, string Endpoint,
   string Model, double Temperature, int TimeoutSeconds, double MinConfidence)` with
   `LoadDefault()` reading `llm_config.json` from `AppContext.BaseDirectory` (same pattern as
   `AliasRules.LoadDefault`), plus env-var overrides (`OLLAMA_HOST`, `CELMAP_LLM_MODEL`,
   `CELMAP_LLM_ENABLED`). Defaults: `http://localhost:11434`, **`phi4-mini` (3.8B, Q4_K_M)**,
-  temp `0`, 30s, min-confidence `0.8`, **disabled by default**. See "Recommended model" below.
-- New `src/CelMap.Core/Llm/LlmAssistedColumnMatcher.cs` — the decorator + few-shot prompt
-  builder. System prompt states the task + output contract + worked column-name examples
-  (adapted from the user's ADP→Workday example, e.g. `Emp_ID`→`employee_id`); instructs the
-  model to use only the provided sources and emit `null` when none fit.
+  temp `0`, 30s, min-confidence `0.8`, **disabled by default**. See "Recommended model".
+- New `src/CelMap.Core/Llm/LlmAssistedColumnMatcher.cs` — decorator + few-shot prompt builder.
+  System prompt: task + output contract + worked column-name examples (adapted from the
+  ADP→Workday example, e.g. `Emp_ID`→`employee_id`); use only provided sources, emit `null`
+  when none fit.
 - New `src/CelMap.Core/llm_config.json` — shipped default config.
 - Modify `src/CelMap.Core/MappingResult.cs` — add `Llm` to `MatchKind`
-  (`Fuzzy=0, Alias=1, Exact=2, Qualified=3, Llm=4`); value is cosmetic (decorator-only) so
-  the UI/CLI can badge AI matches.
+  (`Fuzzy=0, Alias=1, Exact=2, Qualified=3, Llm=4`); cosmetic (decorator-only) so the UI/CLI
+  can badge AI matches.
 - Modify `src/CelMap.Core/IColumnMatcher.cs` — add `bool LlmAssistEnabled = false` to
-  `MatcherOptions`; add optional `Func<HeaderColumn, IReadOnlyList<string>>? sourceSamples
-  = null` to `Match` (keeps `ColumnMatcher` and all existing callers compiling; it ignores it).
+  `MatcherOptions`; add optional `Func<HeaderColumn, IReadOnlyList<string>>? sourceSamples =
+  null` to `Match` (keeps `ColumnMatcher` and all callers compiling; it ignores it).
 - Modify `src/CelMap.Core/CelMap.Core.csproj` — add `Content Include="llm_config.json"
   CopyToOutputDirectory="PreserveNewest"` alongside the existing `synonyms.json` entry.
 
 ### Recommended model (as of 2026-06)
-This task is light — small JSON mapping objects + a short quality summary on a no-GPU CPU —
-so favor a strong instruction-follower with reliable constrained-JSON output over a heavy
-reasoner. Validated against current local-LLM rankings:
-- **Default: `phi4-mini` (3.8B) @ `Q4_K_M`** — ~2.3 GB, ~12 tok/s CPU-only, MIT, 128K ctx,
-  class-leading instruction following; JSON locked via Ollama `format`.
-- **Quality option: `qwen3:8b` @ `Q4_K_M`** — ~5 GB, strongest small model for structured
-  JSON / messy-header disambiguation, Apache-2.0; slower on CPU but fine for batched calls.
-- **Quantization:** `Q4_K_M` (≈92% quality at ≈70% smaller). Configurable via `llm_config.json`
-  / `CELMAP_LLM_MODEL`. One-time `ollama pull phi4-mini`, then fully offline.
+On a no-GPU CPU box, favor a strong instruction-follower with reliable output:
+- **Default: `phi4-mini` (3.8B) @ `Q4_K_M`** — ~2.3 GB, ~12 tok/s CPU-only, MIT, 128K ctx;
+  great for the small mapping JSON, JSON locked via Ollama `format`.
+- **Quality option for client prose: `qwen3:8b` @ `Q4_K_M`** — ~5 GB, Apache-2.0, noticeably
+  better wording for the client-facing questions (Part B). Slower on CPU but fine for the
+  one batched call per run. Selectable via `llm_config.json` / `CELMAP_LLM_MODEL`.
+- **Quantization:** `Q4_K_M` (≈92% quality at ≈70% smaller). One-time `ollama pull`, then
+  fully offline.
 
 ---
 
-## Part B — Unmapped-source quality report (deterministic; optional LLM summary)
+## Part B — Client data-quality query document (primary deliverable)
 
 ### B1. Profiling engine (deterministic, Core, offline)
 Add `src/CelMap.Core/Quality/SourceQualityProfiler.cs` producing a
 `SourceQualityReport(IReadOnlyList<ColumnQuality>)`, where
-`ColumnQuality(HeaderColumn Column, int TotalRows, int BlankCount, double BlankPct,
-int DistinctCount, int DuplicateRowCount, IReadOnlyList<(string Value,int Count)>
-TopDuplicates, IReadOnlyList<string> Inconsistencies, IReadOnlyList<string> SampleValues)`.
+`ColumnQuality(HeaderColumn Column, bool WasMapped, int TotalRows, int BlankCount,
+double BlankPct, int DistinctCount, int DuplicateRowCount,
+IReadOnlyList<(string Value,int Count)> TopDuplicates,
+IReadOnlyList<Issue> Issues, IReadOnlyList<string> SampleValues)` and
+`Issue(IssueType Type, string Detail, IReadOnlyList<string> Evidence)` with
+`enum IssueType { MissingData, Duplication, Inconsistency }`.
 
-Computed over each **unmapped source column** (source columns not present as keys in
-`MappingResult.ToColumnMap()`), reading only the data rows below the header — reuse/extend
-`SheetDataExtensions` (which already has `ColumnIsEmpty`/`PopulatedRowSpan`) and
-`CellValue.Type` (`Empty/Text/Number/Boolean/DateTime/Error`). "Easy to compute" checks:
-- **Missing data:** blank/`Empty` count and percentage.
-- **Duplication:** distinct vs. total; top repeated values with counts.
-- **Inconsistencies (cheap heuristics):** mixed `CellValueType` in one column
-  (e.g. Number + Text); mixed date formats / numbers stored as text; inconsistent
-  casing/leading-trailing whitespace; mixed units/currency symbols via simple regex. Each
-  finding is a short human-readable string — no model required.
+Profiled over **every source column** (set `WasMapped` from `MappingResult.ToColumnMap()`
+keys, but do **not** filter — all columns with issues are reported), reading only the data
+rows below the header. Reuse/extend `SheetDataExtensions` (`ColumnIsEmpty`/`PopulatedRowSpan`)
+and `CellValue.Type` (`Empty/Text/Number/Boolean/DateTime/Error`). "Easy to compute" checks:
+- **Missing data:** blank/`Empty` count and percentage (evidence: example blank row numbers).
+- **Duplication:** distinct vs. total; top repeated values with counts (evidence: the repeated
+  values + counts).
+- **Inconsistencies (cheap heuristics):** mixed `CellValueType` in a column (Number + Text),
+  numbers/dates stored as text, mixed date formats, inconsistent casing / stray whitespace,
+  mixed units/currency symbols via simple regex (evidence: a few offending sample values).
 
-A helper `SourceQualityProfiler.Profile(SheetData source, IReadOnlyList<HeaderColumn>
-sourceHeaders, IReadOnlyDictionary<int,int> appliedColumnMap, int srcHeaderRow)` returns the
-report; this is the single entry point both the CLI and App call.
+Entry point: `SourceQualityProfiler.Profile(SheetData source, IReadOnlyList<HeaderColumn>
+sourceHeaders, IReadOnlyDictionary<int,int> appliedColumnMap, int srcHeaderRow)`. Columns with
+no issues are omitted from the report.
 
-### B2. Optional LLM summary (local, offline, opt-in)
-Add `src/CelMap.Core/Quality/QualitySummarizer.cs` that, when `LlmConfig.Enabled`, feeds the
-**already-computed** deterministic findings (not raw data) to the local `IOllamaClient` and
-asks for a short plain-English narrative ("3 of 5 unmapped columns have >20% blanks; column
-'Sal' mixes text and numbers …"). On any failure it returns the deterministic findings with
-no narrative. Reuses the Part A `IOllamaClient`/`LlmConfig` — no second model, still the only
-network use is the one-time pull.
+### B2. Query document generator (deterministic layout + LLM-authored prose)
+Add `src/CelMap.Core/Quality/QualityQueryGenerator.cs` producing a `ClientQueryDocument`:
+- `DocumentSummary(int QueryCount, int ColumnCount, DateOnly GeneratedOn,
+  IReadOnlyList<QueryIndexEntry> Index)`
+- `Query(int Number, string ColumnLabel, IssueType Type, string QuestionText,
+  EvidenceTable Evidence)`; `EvidenceTable(IReadOnlyList<string> Headers,
+  IReadOnlyList<IReadOnlyList<string>> Rows)`.
 
-### B3. Output: extra worksheet in the mapped file
-Extend the writer to append a `CelMap Quality Report` worksheet to the output workbook.
-Cleanest seam: `TargetWriter.Write` already has the `XLWorkbook wb` open before `wb.Save()`
-(`src/CelMap.Core/TargetWriter.cs:154`). Add an optional `SourceQualityReport? QualityReport`
-to `WriteRequest`; when present, add a sheet via `wb.AddWorksheet(...)` and write one row per
-unmapped column (label, total, blanks, blank %, distinct, duplicate rows, top duplicates,
-inconsistencies, and the optional LLM narrative in a header block) before `wb.Save()`. No new
-file is created and the existing data-writing path is untouched.
+One numbered `Query` **per issue** (in column order, issues grouped per column). Numbers and
+evidence tables are built **deterministically** from `SourceQualityReport`. The **question
+wording** is authored by the local model:
+- Single batched `ChatJsonAsync` call: send the structured list of issues (column, type,
+  detail, key stats) and ask for a JSON array of `{number, question}` — professional,
+  client-appropriate phrasing, one per issue. `temperature` from config (0–0.3).
+- **Fallback:** when `LlmConfig.Enabled` is false or the call fails/returns junk, fill each
+  `QuestionText` from a deterministic per-`IssueType` template (e.g. "Column '{label}' has
+  {n} blank entries ({pct}%). Please confirm whether these should be populated, and supply
+  the missing values."). The document is therefore always produced, with or without the model.
+
+This is where "maximise CPU power for the communication" lands: the model's whole job is to
+turn correct findings into clear client questions; it never invents numbers.
+
+### B3. Rendering: worksheets in the mapped output file
+Extend the writer to add the query document as worksheet(s) before `wb.Save()`
+(`src/CelMap.Core/TargetWriter.cs:154`, where the `XLWorkbook wb` is already open). Add an
+optional `ClientQueryDocument? QueryDocument` to `WriteRequest`; when present:
+- **"Data Quality Summary"** sheet — title, generated date, a `[Client name]` placeholder
+  cell, totals ("{QueryCount} queries across {ColumnCount} columns"), and an index table
+  (Q#, Column, Issue type, short question). Styled with bold headers + fill (ClosedXML
+  `Style.Font.Bold` / `Style.Fill`, as already used in `TargetWriterTests`).
+- **"Data Quality Queries"** sheet — each numbered question as a bold heading + wrapped
+  question text, followed by its evidence table (bordered, header-filled), with spacing
+  between questions and auto-fit columns.
+
+No new file is created and the existing data-writing path is untouched (the report sheets are
+purely additive).
 
 ### B4. Surfaces
-- **WPF panel:** after a match, compute the report (deterministic, on the cached
-  `_sourceData`/`_sourceHeaders` in `MainViewModel`) and bind it to a new collapsible panel
-  in the mapping screen showing the unmapped columns and their findings, so the user reviews
-  issues before Execute. The optional LLM summary populates a header text block when the AI
-  toggle is on. Pass the report into `WriteRequest` on Execute so it also lands in the file.
-- **Output sheet:** as in B3, travels with the result for both App and CLI runs.
-- (CLI gets the extra sheet for free via the writer; a console table is out of scope per the
-  user's surface choices.)
+- **WPF panel:** after a match, compute the report (deterministic) and generate the document;
+  show a review panel listing the numbered questions + evidence so the human can read them
+  before Execute. (Stretch: allow editing question text inline before write.) On Execute, pass
+  the `ClientQueryDocument` into `WriteRequest` so it lands in the output workbook.
+- **Output sheets:** as in B3, for both App and CLI runs.
 
 ### Files (Part B)
-- New `src/CelMap.Core/Quality/SourceQualityProfiler.cs`, `.../ColumnQuality.cs` (+ report
-  record), `src/CelMap.Core/Quality/QualitySummarizer.cs`.
-- Modify `src/CelMap.Core/SheetDataExtensions.cs` — add small profiling helpers if useful
-  (distinct/blank counts per column over the data range).
-- Modify `src/CelMap.Core/TargetWriter.cs` + the `WriteRequest` record — optional
-  `QualityReport`; append the report worksheet before `wb.Save()`.
-- Modify `src/CelMap.App/MainViewModel.cs` — compute the report in `RunMatchAsync` (reuse
-  cached `_sourceData`, `_sourceHeaders`, `result.ToColumnMap()`), expose it as an
-  `[ObservableProperty]`, and include it in the `WriteRequest` built in `WriteAsync`.
-- New WPF view/section + a `MappingViewModel`/`MainViewModel` binding for the quality panel
-  (follow existing Material Design patterns in the mapping view).
+- New `src/CelMap.Core/Quality/SourceQualityProfiler.cs`, `.../ColumnQuality.cs` (report +
+  `Issue`/`IssueType`), `.../QualityQueryGenerator.cs`, `.../ClientQueryDocument.cs`.
+- Modify `src/CelMap.Core/SheetDataExtensions.cs` — small profiling helpers (per-column
+  distinct/blank counts, type histogram over the data range).
+- Modify `src/CelMap.Core/TargetWriter.cs` + `WriteRequest` — optional `QueryDocument`;
+  render the two sheets before `wb.Save()`.
+- Modify `src/CelMap.App/MainViewModel.cs` — compute report + generate document in
+  `RunMatchAsync` (reuse cached `_sourceData`, `_sourceHeaders`, `result.ToColumnMap()`),
+  expose it as `[ObservableProperty]`, include it in the `WriteRequest` built in `WriteAsync`.
+- New WPF view/section + binding for the query-review panel (follow existing Material Design
+  patterns in the mapping view).
 
 ---
 
@@ -156,17 +179,17 @@ file is created and the existing data-writing path is untouched.
 - `src/CelMap.App/MainViewModel.cs`: construct `LlmAssistedColumnMatcher` in the ctor
   (line ~49); add `[ObservableProperty] bool _llmAssistEnabled` near `_fuzzyEnabled`
   (~line 128); thread `LlmAssistEnabled` + `sourceSamples` (reuse `_sourceSamples`,
-  line 281/35) into the two `MatcherOptions`/`Match` calls (~lines 266, 401). The LLM call
-  runs inside the existing `Task.Run`, so the decorator may block on the async client
+  line 281/35) into the two `MatcherOptions`/`Match` calls (~lines 266, 401). LLM work runs
+  inside the existing `Task.Run`, so the decorator/generator may block on the async client
   (`.GetAwaiter().GetResult()`) without freezing the UI.
-- `src/CelMap.Cli/Program.cs`: add `--llm` (and `--llm-model <name>`) flags; load
-  `LlmConfig`; build a `sourceSamples` closure from `sourceData`; the quality report is
-  always computed and written into the output workbook.
+- `src/CelMap.Cli/Program.cs`: add `--llm` (and `--llm-model <name>`) flags; load `LlmConfig`;
+  build a `sourceSamples` closure from `sourceData`; always compute the report, generate the
+  query document, and write it into the output workbook.
 - `src/CelMap.App` XAML: add a "Use local AI assist (Ollama)" checkbox bound to
-  `LlmAssistEnabled` next to the fuzzy toggles; teach the mapping grid badge to recognize
-  `MatchKind.Llm`; add the quality-report panel.
+  `LlmAssistEnabled`; teach the mapping grid badge to recognize `MatchKind.Llm`; add the
+  data-quality query-review panel.
 - `README.md`: document both features, the strict local-only behavior (Ollama on localhost;
-  one-time `ollama pull phi4-mini`; works fully offline thereafter), the `--llm` flag/app
+  one-time `ollama pull phi4-mini` / `qwen3:8b`; offline thereafter), the `--llm` flag/app
   toggle, and the `llm_config.json` keys + env-var overrides.
 
 `IColumnMatcher.Match` stays synchronous (both consumers already call it inside `Task.Run`),
@@ -177,26 +200,27 @@ avoiding cascading async signature changes.
 ## Verification
 
 1. **Unit tests** (`dotnet test tests/CelMap.Core.Tests`, no live server):
-   - *Profiler:* a column with blanks → correct blank count/%; repeated values → duplicate
-     counts + top-duplicates; mixed `CellValueType` / mixed date formats → inconsistency
-     strings; only **unmapped** columns appear in the report; clean column → no findings.
-   - *Mapping assist (fake `IOllamaClient`):* suggestion fills an `Unmatched` target →
-     `Auto` + `MatchKind.Llm`; a deterministically-claimed source is never reassigned; two
-     suggestions on one source → one wins; client throws / null / invalid JSON →
-     result identical to deterministic-only; `LlmAssistEnabled=false` → client never called.
-   - *Summarizer:* client failure → findings returned with no narrative (no throw).
-   - *Writer:* `WriteRequest` with a `QualityReport` → output workbook contains the
-     `CelMap Quality Report` sheet with the expected rows; without it → unchanged behavior.
-2. **Existing suite stays green** — confirms the optional `Match` param, new enum value, and
-   `WriteRequest` change don't regress `ColumnMatcherTests`, `MatchWriteIntegrationTests`,
-   `TargetWriterTests`, etc.
+   - *Profiler:* blanks → correct blank count/% + evidence; repeated values → duplicate counts
+     + top-duplicates; mixed `CellValueType`/date formats → inconsistency issues; **mapped**
+     columns with issues still appear (scope = all columns); clean column → omitted.
+   - *Query generator (fake `IOllamaClient`):* N issues → N numbered queries with correct
+     evidence tables; LLM returns wording → applied; LLM disabled/throws/invalid JSON →
+     deterministic template wording, document still complete; numbering is stable and 1-based.
+   - *Mapping assist (fake `IOllamaClient`):* suggestion fills an `Unmatched` target → `Auto` +
+     `MatchKind.Llm`; deterministically-claimed source never reassigned; two suggestions on one
+     source → one wins; failure → identical to deterministic-only; disabled → client not called.
+   - *Writer:* `WriteRequest` with a `QueryDocument` → output workbook gains "Data Quality
+     Summary" + "Data Quality Queries" sheets with expected rows/tables and bold styling;
+     without it → unchanged behavior (existing `TargetWriterTests` stay green).
+2. **Existing suite stays green** — optional `Match` param, new enum value, and `WriteRequest`
+   change don't regress `ColumnMatcherTests`, `MatchWriteIntegrationTests`, `TargetWriterTests`.
 3. **Manual end-to-end (no-GPU machine):**
-   - Offline, no Ollama: run CLI/App on a sheet with unmapped columns containing blanks &
-     dupes → confirm the quality sheet/panel appears with correct deterministic findings and
-     no crash; `--llm` simply no-ops with a warning.
-   - With Ollama (`ollama pull phi4-mini && ollama serve`): `dotnet run --project
-     src/CelMap.Cli -- source.xlsx target.xlsx --llm` → confirm low-confidence targets get
-     AI suggestions (badged) and the quality sheet includes the AI narrative; then stop
-     `ollama serve` and rerun → still completes deterministically.
-   - WPF: toggle "Use local AI assist", re-match → AI rows badged & reviewable, quality
-     panel populated, and the report present in the written file after Execute.
+   - Offline, no Ollama: run CLI/App on a sheet with blanks, dupes, and mixed formats → output
+     workbook contains the two query sheets with correct numbers/evidence and template wording;
+     no crash; `--llm` no-ops with a warning.
+   - With Ollama (`ollama pull qwen3:8b && ollama serve`): rerun → questions are well-worded
+     client prose, numbers/evidence identical to the deterministic run; stop `ollama serve` and
+     rerun → still produces the document via templates.
+   - WPF: match with AI assist on → AI-mapped rows badged; query-review panel lists numbered
+     questions; after Execute the mapped file contains the summary + queries sheets ready for a
+     human to review and send to the client.
